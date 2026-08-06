@@ -1,4 +1,4 @@
-package com.example.ktex
+package com.khm.ktex
 
 import io.flutter.embedding.android.FlutterActivity
 

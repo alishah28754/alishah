@@ -1,4 +1,6 @@
+// widgets.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app_colors.dart';
 import 'models.dart';
 
@@ -19,19 +21,67 @@ Widget _clampedTextScale(BuildContext context, Widget child) {
   );
 }
 
+/// Favourite heart button - only shows when favourited
+class FavouriteHeartButton extends StatelessWidget {
+  final bool isFavourite;
+  final VoidCallback onTap;
+  final double size;
+
+  const FavouriteHeartButton({
+    super.key,
+    required this.isFavourite,
+    required this.onTap,
+    this.size = 18,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Only show the heart if it's favourited
+    if (!isFavourite) return const SizedBox.shrink();
+    
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.favorite_rounded,
+          size: size,
+          color: AppColors.saleRed,
+        ),
+      ),
+    );
+  }
+}
+
 /// Horizontal flash-sale card — image, discount badge, price + strikethrough.
 class FlashSaleCard extends StatelessWidget {
   final FlashSaleProduct product;
+  final bool isFavourite;
   final VoidCallback? onTap;
   final VoidCallback? onAddToCart;
-  final VoidCallback? onAddToFavourites;
+  final VoidCallback? onFavouriteToggle;
 
   const FlashSaleCard({
     super.key,
     required this.product,
+    this.isFavourite = false,
     this.onTap,
     this.onAddToCart,
-    this.onAddToFavourites,
+    this.onFavouriteToggle,
   });
 
   @override
@@ -39,103 +89,117 @@ class FlashSaleCard extends StatelessWidget {
     return _clampedTextScale(
       context,
       GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 120,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.outlineVariant.withOpacity(0.3)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Image.network(
-                  product.imageUrl,
-                  height: 110,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Container(height: 110, color: AppColors.primary),
-                ),
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.saleRed,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '-${product.discountPercent}%',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: kFont,
+        onTap: onTap,
+        child: Container(
+          width: 120,
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.outlineVariant.withOpacity(0.3)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  Image.network(
+                    product.imageUrl,
+                    height: 110,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Container(height: 110, color: AppColors.primary),
+                  ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.saleRed,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '-${product.discountPercent}%',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: kFont,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                // Three dots menu - Gold pill with black dots
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: _ProductMenuButton(
-                    onAddToCart: onAddToCart,
-                    onAddToFavourites: onAddToFavourites,
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, fontFamily: kFont),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Rs.${product.price}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: kFont,
-                      color: AppColors.saleRed,
+                  // Favourite heart button - only shows when favourited
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: FavouriteHeartButton(
+                      isFavourite: isFavourite,
+                      onTap: () {
+                        if (onFavouriteToggle != null) {
+                          onFavouriteToggle!();
+                        }
+                      },
+                      size: 14,
                     ),
                   ),
-                  Text(
-                    'Rs.${product.originalPrice}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontFamily: kFont,
-                      color: AppColors.outline,
-                      decoration: TextDecoration.lineThrough,
+                  // Three dots menu - bottom right
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: _ProductMenuButton(
+                      onAddToCart: onAddToCart,
+                      onAddToFavourites: onFavouriteToggle,
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontFamily: kFont),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Rs.${product.price}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: kFont,
+                        color: AppColors.saleRed,
+                      ),
+                    ),
+                    Text(
+                      'Rs.${product.originalPrice}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontFamily: kFont,
+                        color: AppColors.outline,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -144,16 +208,18 @@ class FlashSaleCard extends StatelessWidget {
 /// New Arrival horizontal card with "NEW" badge and three-dots menu
 class NewArrivalCard extends StatelessWidget {
   final NewArrivalProduct product;
+  final bool isFavourite;
   final VoidCallback? onTap;
   final VoidCallback? onAddToCart;
-  final VoidCallback? onAddToFavourites;
+  final VoidCallback? onFavouriteToggle;
 
   const NewArrivalCard({
     super.key,
     required this.product,
+    this.isFavourite = false,
     this.onTap,
     this.onAddToCart,
-    this.onAddToFavourites,
+    this.onFavouriteToggle,
   });
 
   @override
@@ -161,257 +227,121 @@ class NewArrivalCard extends StatelessWidget {
     return _clampedTextScale(
       context,
       GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 140,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.outlineVariant.withOpacity(0.3)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Image.network(
-                  product.imageUrl,
-                  height: 130,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Container(height: 130, color: AppColors.primary),
-                ),
-                // "NEW" badge
-                Positioned(
-                  top: 6,
-                  left: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.gold,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'NEW',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: kFont,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-                // Premium badge if applicable
-                if (product.isPremium)
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.goldDark,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        'PREMIUM',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: kFont,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                // Three dots menu - Gold pill with black dots
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: _ProductMenuButton(
-                    onAddToCart: onAddToCart,
-                    onAddToFavourites: onAddToFavourites,
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        onTap: onTap,
+        child: Container(
+          width: 140,
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.outlineVariant.withOpacity(0.3)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
                 children: [
-                  Text(
-                    product.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontFamily: kFont,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      // Flexible + ellipsis: without this, a long price
-                      // (e.g. Rs.120000) plus a long sold label together
-                      // can be wider than the 140px card, causing a
-                      // horizontal RenderFlex overflow on some data/devices
-                      // even though it looked fine with shorter sample data.
-                      Flexible(
-                        child: Text(
-                          'Rs.${product.price}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: kFont,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          product.soldLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontFamily: kFont,
-                            color: AppColors.outline,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      ),
-    );
-  }
-}
-
-/// 2-column grid product card with three-dots menu + optional "Premium" tag.
-class ForYouCard extends StatelessWidget {
-  final ForYouProduct product;
-  final VoidCallback? onTap;
-  final VoidCallback? onAddToCart;
-  final VoidCallback? onAddToFavourites;
-
-  const ForYouCard({
-    super.key,
-    required this.product,
-    this.onTap,
-    this.onAddToCart,
-    this.onAddToFavourites,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _clampedTextScale(
-      context,
-      GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.outlineVariant.withOpacity(0.2)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 3 / 4,
-                  child: Image.network(
+                  Image.network(
                     product.imageUrl,
+                    height: 130,
+                    width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
-                        Container(color: AppColors.primary),
+                        Container(height: 130, color: AppColors.primary),
                   ),
-                ),
-                if (product.isPremium)
+                  // "NEW" badge
                   Positioned(
                     top: 6,
                     left: 6,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppColors.goldDark,
+                        color: AppColors.gold,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
-                        'PREMIUM',
+                        'NEW',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 8,
+                          fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
                           fontFamily: kFont,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
                   ),
-                // Three dots menu - Gold pill with black dots
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: _ProductMenuButton(
-                    onAddToCart: onAddToCart,
-                    onAddToFavourites: onAddToFavourites,
+                  // Premium badge if applicable
+                  if (product.isPremium)
+                    Positioned(
+                      top: 6,
+                      right: 36,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.goldDark,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'PREMIUM',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: kFont,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Favourite heart button - only shows when favourited
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: FavouriteHeartButton(
+                      isFavourite: isFavourite,
+                      onTap: () {
+                        if (onFavouriteToggle != null) {
+                          onFavouriteToggle!();
+                        }
+                      },
+                      size: 14,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  // Three dots menu - bottom right
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: _ProductMenuButton(
+                      onAddToCart: onAddToCart,
+                      onAddToFavourites: onFavouriteToggle,
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       product.name,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, fontFamily: kFont),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: kFont,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
-                        // Flexible + ellipsis on both sides: with
-                        // mainAxisAlignment.spaceBetween and no Flexible,
-                        // a long price next to a long sold-count label can
-                        // together exceed the narrow 2-column grid cell
-                        // width, especially at larger text-scale settings.
                         Flexible(
                           child: Text(
                             'Rs.${product.price}',
@@ -425,7 +355,7 @@ class ForYouCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 6),
                         Flexible(
                           child: Text(
                             product.soldLabel,
@@ -444,10 +374,166 @@ class ForYouCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// 2-column grid product card with three-dots menu + optional "Premium" tag.
+class ForYouCard extends StatelessWidget {
+  final ForYouProduct product;
+  final bool isFavourite;
+  final VoidCallback? onTap;
+  final VoidCallback? onAddToCart;
+  final VoidCallback? onFavouriteToggle;
+
+  const ForYouCard({
+    super.key,
+    required this.product,
+    this.isFavourite = false,
+    this.onTap,
+    this.onAddToCart,
+    this.onFavouriteToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _clampedTextScale(
+      context,
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.outlineVariant.withOpacity(0.2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 3 / 4,
+                    child: Image.network(
+                      product.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Container(color: AppColors.primary),
+                    ),
+                  ),
+                  if (product.isPremium)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.goldDark,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'PREMIUM',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            fontFamily: kFont,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Favourite heart button - only shows when favourited
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: FavouriteHeartButton(
+                      isFavourite: isFavourite,
+                      onTap: () {
+                        if (onFavouriteToggle != null) {
+                          onFavouriteToggle!();
+                        }
+                      },
+                      size: 16,
+                    ),
+                  ),
+                  // Three dots menu - bottom right
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: _ProductMenuButton(
+                      onAddToCart: onAddToCart,
+                      onAddToFavourites: onFavouriteToggle,
+                    ),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, fontFamily: kFont),
+                      ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Rs.${product.price}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: kFont,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              product.soldLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontSize: 9,
+                                fontFamily: kFont,
+                                color: AppColors.outline,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+<string>K-TEX needs access to your photo library to set profile pictures</string>
+<key>NSCameraUsageDescription</key>
+<string>K-TEX needs access to your camera to take profile pictures</string>
 </dict>
 </plist>

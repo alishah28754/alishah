@@ -1,3 +1,4 @@
+// coming_soon_page.dart
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
@@ -59,64 +60,4 @@ class ComingSoonPage extends StatelessWidget {
   }
 }
 
-/// Specific placeholder for the Favourites tab
-class FavouritesPage extends StatelessWidget {
-  const FavouritesPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: AppColors.goldContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.favorite_rounded,
-                  size: 38,
-                  color: AppColors.goldDark,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Favourites',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: kFont,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Your saved items will appear here',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: kFont,
-                  color: AppColors.outline,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                '❤️ Start adding your favourites!',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: kFont,
-                  color: AppColors.outline,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// REMOVED: FavouritesPage class - now using from favourites_page.dart

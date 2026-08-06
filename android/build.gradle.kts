@@ -1,3 +1,13 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.google.gms:google-services:4.4.2")  // ← Add this
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -14,7 +24,16 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+
+    afterEvaluate {
+        if (project.hasProperty("android")) {
+            project.extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.apply {
+                ndkVersion = ""
+            }
+        }
+    }
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }
