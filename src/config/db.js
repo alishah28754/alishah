@@ -3,25 +3,22 @@ const mysql = require('mysql2/promise');
 // Railway MySQL uses MYSQLHOST, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE
 // Local development uses DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
 const pool = mysql.createPool({
+  // Pehle Railway variables, phir local variables, phir defaults
   host: process.env.MYSQLHOST || process.env.DB_HOST || 'localhost',
-  port: process.env.MYSQLPORT || process.env.DB_PORT || 3306,
+  port: Number(process.env.MYSQLPORT || process.env.DB_PORT || 3306),
   user: process.env.MYSQLUSER || process.env.DB_USER || 'root',
   password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
   database: process.env.MYSQLDATABASE || process.env.DB_NAME || 'ktex_db',
   waitForConnections: true,
-  // Railway internal connection ke liye lower limit
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 3),
   queueLimit: 0,
   dateStrings: true,
   enableKeepAlive: true,
-  // Railway MySQL ke liye extra options
-  connectTimeout: 10000,
-  ssl: {
-    rejectUnauthorized: false  // Railway internal ke liye
-  }
+  connectTimeout: 30000,  // 30 seconds timeout
+  // ❌ SSL hatao — Railway internal network ke liye zaroori nahi
 });
 
-// Quick connectivity check on boot (does not crash the app, just logs)
+// Quick connectivity check on boot
 (async () => {
   try {
     const conn = await pool.getConnection();
