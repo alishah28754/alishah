@@ -1,11 +1,11 @@
 const multer = require('multer');
 const path = require('path');
 
-// Files are held in memory only, then streamed straight to Cloudinary in
-// uploadController.js. Nothing is written to local disk -- important because
-// most cheap/free Node hosts (Render, Vercel, etc.) wipe local disk on every
-// restart or redeploy, which would otherwise silently delete every uploaded
-// image.
+/**
+ * Multer configuration for memory storage.
+ * Files are stored in memory then streamed to Cloudinary.
+ * This prevents issues with ephemeral storage on serverless hosts.
+ */
 const storage = multer.memoryStorage();
 
 function fileFilter(req, file, cb) {

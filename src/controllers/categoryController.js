@@ -2,20 +2,20 @@ const pool = require('../config/db');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
-/* GET /api/categories - public */
+/** GET /api/categories - Public - Returns all categories */
 const getCategories = asyncHandler(async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM categories ORDER BY name ASC');
   return success(res, rows);
 });
 
-/* GET /api/categories/:id - public */
+/** GET /api/categories/:id - Public */
 const getCategoryById = asyncHandler(async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM categories WHERE id = ?', [req.params.id]);
   if (rows.length === 0) return error(res, 'Category not found.', 404);
   return success(res, rows[0]);
 });
 
-/* POST /api/categories - admin only (used by web admin panel) */
+/** POST /api/categories - Admin only */
 const createCategory = asyncHandler(async (req, res) => {
   const { name, image_url } = req.body;
   if (!name) return error(res, 'name is required.', 400);
@@ -28,7 +28,7 @@ const createCategory = asyncHandler(async (req, res) => {
   return success(res, rows[0], 'Category created.', 201);
 });
 
-/* PUT /api/categories/:id - admin only */
+/** PUT /api/categories/:id - Admin only */
 const updateCategory = asyncHandler(async (req, res) => {
   const { name, image_url } = req.body;
   const fields = [];
@@ -46,8 +46,14 @@ const updateCategory = asyncHandler(async (req, res) => {
   return success(res, rows[0], 'Category updated.');
 });
 
-/* DELETE /api/categories/:id - admin only */
+/** DELETE /api/categories/:id - Admin only */
 const deleteCategory = asyncHandler(async (req, res) => {
+  // Check if category has products
+  const [products] = await pool.query('SELECT COUNT(*) as count FROM products WHERE category_id = ?', [req.params.id]);
+  if (products[0].count > 0) {
+    return error(res, 'Cannot delete category with existing products. Move or delete products first.', 400);
+  }
+
   const [result] = await pool.query('DELETE FROM categories WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return error(res, 'Category not found.', 404);
   return success(res, null, 'Category deleted.');

@@ -1,17 +1,17 @@
 const router = require('express').Router();
 const {
-  createOrder, getMyOrders, getOrderByNumber, trackOrder, cancelOrder,
+  createOrder, getMyOrders, trackOrder, cancelOrder,
 } = require('../controllers/orderController');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 
-// public tracking lookup (track_order_screen.dart) - must come before /:orderNumber
+// Public tracking (must be before /:orderNumber)
 router.get('/track/:orderNumber', trackOrder);
 
-// guest checkout allowed, but logged-in users get the order linked to their account
+// Guest checkout allowed
 router.post('/', optionalAuth, createOrder);
 
+// Protected routes
 router.get('/', requireAuth, getMyOrders);
-router.get('/:orderNumber', optionalAuth, getOrderByNumber);
 router.put('/:orderNumber/cancel', requireAuth, cancelOrder);
 
 module.exports = router;

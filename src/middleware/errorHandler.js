@@ -1,23 +1,22 @@
 const { error } = require('../utils/apiResponse');
 
-/* eslint-disable no-unused-vars */
 function errorHandler(err, req, res, next) {
   console.error('❌', err.message);
+  console.error('   Stack:', err.stack);
 
-  if (err.code === 'ER_DUP_ENTRY') {
-    return error(res, 'This record already exists (duplicate entry).', 409);
-  }
-  if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
-    return error(res, 'Related record not found (invalid reference).', 400);
-  }
-  if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
-    return error(res, 'Cannot delete: this record is used elsewhere.', 409);
-  }
-  if (err.name === 'MulterError') {
-    return error(res, `Upload error: ${err.message}`, 400);
-  }
+  // Map database errors to user-friendly messages
+  const errorMap = {
+    'ER_DUP_ENTRY': 'This record already exists (duplicate entry).',
+    'ER_NO_REFERENCED_ROW_2': 'Related record not found (invalid reference).',
+    'ER_NO_REFERENCED_ROW': 'Related record not found (invalid reference).',
+    'ER_ROW_IS_REFERENCED_2': 'Cannot delete: this record is used elsewhere.',
+    'ER_ROW_IS_REFERENCED': 'Cannot delete: this record is used elsewhere.',
+  };
 
-  return error(res, err.message || 'Internal server error', err.statusCode || 500);
+  const message = errorMap[err.code] || err.message || 'Internal server error';
+  const statusCode = err.statusCode || (err.code?.startsWith('ER_') ? 400 : 500);
+
+  return error(res, message, statusCode);
 }
 
 function notFound(req, res) {

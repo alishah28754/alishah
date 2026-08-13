@@ -20,7 +20,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const app = express();
 
 // ---- Core middleware ----
-app.use(helmet({ crossOriginResourcePolicy: false })); // allow images to be loaded cross-origin by the app/admin panel
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({
   origin: process.env.CORS_ORIGIN === '*' ? true : (process.env.CORS_ORIGIN || '').split(','),
 }));
@@ -28,7 +28,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// ---- Static files (uploaded product/category/banner images) ----
+// ---- Static files ----
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // ---- Health check ----
@@ -44,11 +44,11 @@ app.use('/api/banners', bannerRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/favourites', favouriteRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/admin', adminRoutes);   // used by the future web admin panel
-app.use('/api/upload', uploadRoutes); // used by the future web admin panel
-app.use('/api/payments', paymentRoutes); // PayFast hosted checkout
+app.use('/api/admin', adminRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/payments', paymentRoutes);
 
-// ---- 404 + error handling (must be last) ----
+// ---- 404 + error handling ----
 app.use(notFound);
 app.use(errorHandler);
 

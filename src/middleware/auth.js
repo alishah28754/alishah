@@ -37,14 +37,20 @@ async function resolveAdminUser(token) {
  */
 async function resolveFirebaseUser(idToken) {
   const decoded = await admin.auth().verifyIdToken(idToken);
-  const { uid, email, name, phone_number } = decoded;
+  const { uid, email, name, phone_number, picture, firebase } = decoded;
+  const provider = firebase?.sign_in_provider === 'google.com' ? 'google' : 'email';
 
   let [rows] = await pool.query('SELECT * FROM users WHERE firebase_uid = ? LIMIT 1', [uid]);
 
   if (rows.length === 0) {
     const [result] = await pool.query(
-      'INSERT INTO users (firebase_uid, name, email, phone) VALUES (?, ?, ?, ?)',
-      [uid, name || (email ? email.split('@')[0] : 'KTEX User'), email || null, phone_number || null]
+      `INSERT INTO users
+        (firebase_uid, name, email, phone, provider, profile_image, is_email_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        uid, name || (email ? email.split('@')[0] : 'KTEX User'), email || null, phone_number || null,
+        provider, picture || null, decoded.email_verified ? 1 : 0,
+      ]
     );
     [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
   }
@@ -78,6 +84,9 @@ async function requireAuth(req, res, next) {
 
     if (!user) {
       return error(res, 'Invalid or expired session. Please log in again.', 401);
+    }
+    if (!user.is_active) {
+      return error(res, 'This account has been deactivated. Contact support.', 403);
     }
 
     req.user = toReqUser(user);

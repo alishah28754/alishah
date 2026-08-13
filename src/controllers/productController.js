@@ -3,9 +3,15 @@ const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
 /**
- * Maps a MySQL products row (+ joined category name) to the EXACT
- * JSON shape expected by Flutter's Product.fromJson() in models.dart.
+ * Generate unique product ID
+ * Format: prod-{timestamp}-{random4chars}
  */
+function generateProductId() {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 6);
+  return `prod-${timestamp}-${random}`;
+}
+
 function toProductJson(row) {
   return {
     id: String(row.id),
@@ -33,9 +39,9 @@ const BASE_SELECT = `
   LEFT JOIN categories c ON c.id = p.category_id
 `;
 
-/* GET /api/products - public, supports ?category=&search=&is_premium=&page=&limit= */
+/** GET /api/products - Filtered product list */
 const getProducts = asyncHandler(async (req, res) => {
-  const { category, search, is_premium, page = 1, limit = 20 } = req.query;
+  const { category, search, is_premium, page = 1, limit = 100 } = req.query;
 
   const where = [];
   const values = [];
@@ -64,32 +70,32 @@ const getProducts = asyncHandler(async (req, res) => {
   });
 });
 
-/* GET /api/products/flash-sale - public */
+/** GET /api/products/flash-sale */
 const getFlashSale = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(`${BASE_SELECT} WHERE p.is_flash_sale = 1 ORDER BY p.created_at DESC`);
   return success(res, rows.map(toProductJson));
 });
 
-/* GET /api/products/new-arrivals - public */
+/** GET /api/products/new-arrivals */
 const getNewArrivals = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(`${BASE_SELECT} WHERE p.is_new_arrival = 1 ORDER BY p.created_at DESC`);
   return success(res, rows.map(toProductJson));
 });
 
-/* GET /api/products/for-you - public */
+/** GET /api/products/for-you */
 const getForYou = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(`${BASE_SELECT} WHERE p.is_for_you = 1 ORDER BY p.created_at DESC`);
   return success(res, rows.map(toProductJson));
 });
 
-/* GET /api/products/:id - public */
+/** GET /api/products/:id - Single product */
 const getProductById = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(`${BASE_SELECT} WHERE p.id = ?`, [req.params.id]);
   if (rows.length === 0) return error(res, 'Product not found.', 404);
   return success(res, toProductJson(rows[0]));
 });
 
-/* POST /api/products - admin only */
+/** POST /api/products - Admin only - Creates product with auto-generated ID */
 const createProduct = asyncHandler(async (req, res) => {
   const {
     name, image_url, price, original_price, discount_percent, sold_label,
@@ -101,24 +107,27 @@ const createProduct = asyncHandler(async (req, res) => {
     return error(res, 'name, image_url and price are required.', 400);
   }
 
+  // ✅ Auto-generate unique ID
+  const id = generateProductId();
+
   const [result] = await pool.query(
     `INSERT INTO products
-      (name, image_url, price, original_price, discount_percent, sold_label,
+      (id, name, image_url, price, original_price, discount_percent, sold_label,
        is_premium, category_id, description, stock, is_flash_sale, is_new_arrival, is_for_you, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      name, image_url, price, original_price || null, discount_percent || null, sold_label || null,
+      id, name, image_url, price, original_price || null, discount_percent || null, sold_label || null,
       is_premium ? 1 : 0, category_id || null, description || null, stock || 0,
       is_flash_sale ? 1 : 0, is_new_arrival ? 1 : 0, is_for_you ? 1 : 0,
       metadata ? JSON.stringify(metadata) : null,
     ]
   );
 
-  const [rows] = await pool.query(`${BASE_SELECT} WHERE p.id = ?`, [result.insertId]);
+  const [rows] = await pool.query(`${BASE_SELECT} WHERE p.id = ?`, [id]);
   return success(res, toProductJson(rows[0]), 'Product created.', 201);
 });
 
-/* PUT /api/products/:id - admin only */
+/** PUT /api/products/:id - Admin only */
 const updateProduct = asyncHandler(async (req, res) => {
   const allowed = [
     'name', 'image_url', 'price', 'original_price', 'discount_percent', 'sold_label',
@@ -147,7 +156,7 @@ const updateProduct = asyncHandler(async (req, res) => {
   return success(res, toProductJson(rows[0]), 'Product updated.');
 });
 
-/* DELETE /api/products/:id - admin only */
+/** DELETE /api/products/:id - Admin only */
 const deleteProduct = asyncHandler(async (req, res) => {
   const [result] = await pool.query('DELETE FROM products WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return error(res, 'Product not found.', 404);

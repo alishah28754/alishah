@@ -12,7 +12,7 @@ function toBannerJson(row) {
   };
 }
 
-/* GET /api/banners - public (only active, ordered) */
+/** GET /api/banners - Public, active banners only */
 const getBanners = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
     'SELECT * FROM banners WHERE is_active = 1 ORDER BY sort_order ASC, id ASC'
@@ -20,7 +20,7 @@ const getBanners = asyncHandler(async (req, res) => {
   return success(res, rows.map(toBannerJson));
 });
 
-/* POST /api/banners - admin only */
+/** POST /api/banners - Admin only */
 const createBanner = asyncHandler(async (req, res) => {
   const { title, subtitle, image_url, category, sort_order } = req.body;
   if (!title || !image_url) return error(res, 'title and image_url are required.', 400);
@@ -33,7 +33,7 @@ const createBanner = asyncHandler(async (req, res) => {
   return success(res, toBannerJson(rows[0]), 'Banner created.', 201);
 });
 
-/* PUT /api/banners/:id - admin only */
+/** PUT /api/banners/:id - Admin only */
 const updateBanner = asyncHandler(async (req, res) => {
   const allowed = ['title', 'subtitle', 'image_url', 'category', 'sort_order', 'is_active'];
   const fields = [];
@@ -55,7 +55,7 @@ const updateBanner = asyncHandler(async (req, res) => {
   return success(res, toBannerJson(rows[0]), 'Banner updated.');
 });
 
-/* DELETE /api/banners/:id - admin only */
+/** DELETE /api/banners/:id - Admin only */
 const deleteBanner = asyncHandler(async (req, res) => {
   const [result] = await pool.query('DELETE FROM banners WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return error(res, 'Banner not found.', 404);

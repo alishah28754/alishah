@@ -83,4 +83,25 @@ const updateProfile = asyncHandler(async (req, res) => {
   return success(res, rows[0], 'Profile updated.');
 });
 
-module.exports = { adminLogin, getMe, updateProfile };
+/* POST /api/auth/sync - protected (Firebase token). Called by the Flutter
+   app right after a successful login/signup. The `users` row itself is
+   already auto-created by requireAuth (see middleware/auth.js) the moment
+   any authenticated request comes in from a new firebase_uid -- this
+   endpoint just guarantees that happens immediately at login time (rather
+   than waiting on some later cart/order call), and records the login. */
+const syncUser = asyncHandler(async (req, res) => {
+  await pool.query(
+    'UPDATE users SET login_count = login_count + 1, last_login = NOW() WHERE id = ?',
+    [req.user.id]
+  );
+
+  const [rows] = await pool.query(
+    `SELECT id, firebase_uid, name, email, phone, provider, profile_image,
+            is_email_verified, is_admin, is_active, login_count, last_login, created_at
+     FROM users WHERE id = ?`,
+    [req.user.id]
+  );
+  return success(res, rows[0], 'Synced.');
+});
+
+module.exports = { adminLogin, getMe, updateProfile, syncUser };

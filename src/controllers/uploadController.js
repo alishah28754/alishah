@@ -1,17 +1,19 @@
 const cloudinary = require('../config/cloudinary');
 const { success, error } = require('../utils/apiResponse');
 
-/* POST /api/upload?type=products|categories|banners - admin only, multipart field name: "image" */
+/** POST /api/upload - Admin only, multipart field "image" */
 const uploadImage = (req, res) => {
   if (!req.file) {
     return error(res, 'No image file uploaded. Use multipart field name "image".', 400);
   }
 
+  // Cloudinary is secondary - warn but don't crash if not configured
+  if (!process.env.CLOUDINARY_CLOUD_NAME) {
+    return error(res, 'Cloudinary is not configured. Please set CLOUDINARY_* env vars.', 503);
+  }
+
   const type = ['products', 'categories', 'banners'].includes(req.query.type) ? req.query.type : 'products';
 
-  // Stream the in-memory file buffer straight to Cloudinary -- no local disk
-  // involved, so images survive restarts/redeploys on hosts with ephemeral
-  // storage (Render, Vercel, etc.).
   const uploadStream = cloudinary.uploader.upload_stream(
     {
       folder: `ktex/${type}`,

@@ -6,7 +6,7 @@ const {
 const { requireAuth } = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/admin');
 
-// IMPORTANT: specific routes must be declared before the generic /:id route
+// Public routes (must be before /:id)
 router.get('/flash-sale', getFlashSale);
 router.get('/new-arrivals', getNewArrivals);
 router.get('/for-you', getForYou);
@@ -14,6 +14,7 @@ router.get('/for-you', getForYou);
 router.get('/', getProducts);
 router.get('/:id', getProductById);
 
+// Admin only routes
 router.post('/', requireAuth, requireAdmin, createProduct);
 router.put('/:id', requireAuth, requireAdmin, updateProduct);
 router.delete('/:id', requireAuth, requireAdmin, deleteProduct);

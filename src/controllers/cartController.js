@@ -2,7 +2,7 @@ const pool = require('../config/db');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
-/* GET /api/cart - protected, returns items in CartItem.fromJson() shape */
+/** GET /api/cart - Get user's cart */
 const getCart = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
     `SELECT p.id AS product_id, p.name, p.image_url, p.price, ci.quantity
@@ -13,7 +13,7 @@ const getCart = asyncHandler(async (req, res) => {
     [req.user.id]
   );
   const items = rows.map((r) => ({
-    product_id: String(r.product_id),
+    product_id: String(r.product_id), // ✅ Ensure string
     name: r.name,
     image_url: r.image_url,
     price: r.price,
@@ -22,11 +22,12 @@ const getCart = asyncHandler(async (req, res) => {
   return success(res, items);
 });
 
-/* POST /api/cart - protected, body: { product_id, quantity? } - add or increment */
+/** POST /api/cart - Add to cart */
 const addToCart = asyncHandler(async (req, res) => {
   const { product_id, quantity } = req.body;
   if (!product_id) return error(res, 'product_id is required.', 400);
 
+  // Check if product exists (works with string IDs)
   const [productRows] = await pool.query('SELECT id FROM products WHERE id = ?', [product_id]);
   if (productRows.length === 0) return error(res, 'Product not found.', 404);
 
@@ -40,7 +41,7 @@ const addToCart = asyncHandler(async (req, res) => {
   return success(res, null, 'Added to cart.', 201);
 });
 
-/* PUT /api/cart/:productId - protected, body: { quantity } - set exact quantity */
+/** PUT /api/cart/:productId - Update quantity */
 const updateCartItem = asyncHandler(async (req, res) => {
   const { quantity } = req.body;
   if (quantity === undefined) return error(res, 'quantity is required.', 400);
@@ -60,7 +61,7 @@ const updateCartItem = asyncHandler(async (req, res) => {
   return success(res, null, 'Cart updated.');
 });
 
-/* DELETE /api/cart/:productId - protected */
+/** DELETE /api/cart/:productId - Remove from cart */
 const removeFromCart = asyncHandler(async (req, res) => {
   await pool.query('DELETE FROM cart_items WHERE user_id = ? AND product_id = ?', [
     req.user.id, req.params.productId,
@@ -68,7 +69,7 @@ const removeFromCart = asyncHandler(async (req, res) => {
   return success(res, null, 'Item removed from cart.');
 });
 
-/* DELETE /api/cart - protected, clears the whole cart */
+/** DELETE /api/cart - Clear cart */
 const clearCart = asyncHandler(async (req, res) => {
   await pool.query('DELETE FROM cart_items WHERE user_id = ?', [req.user.id]);
   return success(res, null, 'Cart cleared.');

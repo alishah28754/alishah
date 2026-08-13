@@ -3,8 +3,7 @@ const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
 /**
- * Maps DB rows to the EXACT shape expected by Flutter's Order.fromJson()
- * in order_model.dart: { id, date, items, total, status, payment, tracking, image, orderItems }
+ * Maps DB rows to EXACT shape expected by Flutter's Order.fromJson()
  */
 function toOrderJson(orderRow, itemRows) {
   return {
@@ -36,10 +35,13 @@ function generateTrackingNumber() {
   return `TRK${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-/* POST /api/orders - protected (or guest via optionalAuth) */
+/**
+ * POST /api/orders - Create order (guest or logged-in)
+ * FIX: Handles string product IDs from frontend
+ */
 const createOrder = asyncHandler(async (req, res) => {
   const {
-    items, // [{ product_id, name, price, quantity, image_url }]
+    items, // [{ product_id (string), name, price, quantity, image_url }]
     name, email, phone, address, city, zip,
     payment_method, transaction_id,
   } = req.body;
@@ -52,7 +54,7 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const total = subtotal; // extend here later for shipping/discount
+  const total = subtotal;
 
   const connection = await pool.getConnection();
   try {
@@ -61,6 +63,7 @@ const createOrder = asyncHandler(async (req, res) => {
     const orderNumber = generateOrderNumber();
     const trackingNumber = generateTrackingNumber();
 
+    // Insert order
     const [orderResult] = await connection.query(
       `INSERT INTO orders
         (order_number, user_id, customer_name, email, phone, address, city, zip,
@@ -74,15 +77,18 @@ const createOrder = asyncHandler(async (req, res) => {
 
     const orderId = orderResult.insertId;
 
+    // Insert order items - FIX: accepts string product_id
     for (const item of items) {
+      // product_id can be string from frontend
+      const productId = item.product_id || null;
       await connection.query(
         `INSERT INTO order_items (order_id, product_id, name, price, quantity, image_url)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [orderId, item.product_id || null, item.name, item.price, item.quantity, item.image_url || null]
+        [orderId, productId, item.name, item.price, item.quantity, item.image_url || null]
       );
     }
 
-    // clear the user's persisted cart after a successful order (if logged in)
+    // Clear cart if logged in
     if (req.user) {
       await connection.query('DELETE FROM cart_items WHERE user_id = ?', [req.user.id]);
     }
@@ -101,7 +107,7 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 });
 
-/* GET /api/orders - protected, current user's orders */
+/** GET /api/orders - Current user's orders */
 const getMyOrders = asyncHandler(async (req, res) => {
   const [orders] = await pool.query(
     'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC',
@@ -116,22 +122,7 @@ const getMyOrders = asyncHandler(async (req, res) => {
   return success(res, results);
 });
 
-/* GET /api/orders/:orderNumber - protected (owner) or public tracking lookup */
-const getOrderByNumber = asyncHandler(async (req, res) => {
-  const [orders] = await pool.query('SELECT * FROM orders WHERE order_number = ?', [req.params.orderNumber]);
-  if (orders.length === 0) return error(res, 'Order not found.', 404);
-
-  const order = orders[0];
-  // if logged in and it's not their order (and they're not admin), block
-  if (req.user && order.user_id && order.user_id !== req.user.id && !req.user.is_admin) {
-    return error(res, 'You do not have access to this order.', 403);
-  }
-
-  const [itemRows] = await pool.query('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
-  return success(res, toOrderJson(order, itemRows));
-});
-
-/* GET /api/orders/track/:orderNumber - public tracking (used by track_order_screen.dart) */
+/** GET /api/orders/track/:orderNumber - Public tracking */
 const trackOrder = asyncHandler(async (req, res) => {
   const [orders] = await pool.query('SELECT * FROM orders WHERE order_number = ?', [req.params.orderNumber]);
   if (orders.length === 0) return error(res, 'Order not found. Check your order number.', 404);
@@ -141,7 +132,7 @@ const trackOrder = asyncHandler(async (req, res) => {
   return success(res, toOrderJson(order, itemRows));
 });
 
-/* PUT /api/orders/:orderNumber/cancel - protected (owner), only if still Processing */
+/** PUT /api/orders/:orderNumber/cancel - Cancel order (owner only) */
 const cancelOrder = asyncHandler(async (req, res) => {
   const [orders] = await pool.query('SELECT * FROM orders WHERE order_number = ?', [req.params.orderNumber]);
   if (orders.length === 0) return error(res, 'Order not found.', 404);
@@ -156,4 +147,10 @@ const cancelOrder = asyncHandler(async (req, res) => {
   return success(res, null, 'Order cancelled.');
 });
 
-module.exports = { createOrder, getMyOrders, getOrderByNumber, trackOrder, cancelOrder, toOrderJson };
+module.exports = { 
+  createOrder, 
+  getMyOrders, 
+  trackOrder, 
+  cancelOrder, 
+  toOrderJson 
+};

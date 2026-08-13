@@ -26,25 +26,34 @@ USE ktex_db;
 -- via Firebase as before. firebase_uid is nullable so an admin-only row
 -- (created purely to log into the admin panel) doesn't need one.
 CREATE TABLE IF NOT EXISTS users (
-  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  firebase_uid  VARCHAR(128)  NULL UNIQUE,
-  name          VARCHAR(150)  NOT NULL,
-  email         VARCHAR(191)  NULL UNIQUE,
-  phone         VARCHAR(30)   NULL,
-  password_hash VARCHAR(255)  NULL,
-  is_admin      TINYINT(1)    NOT NULL DEFAULT 0,
-  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  firebase_uid      VARCHAR(128)  NULL UNIQUE,
+  name              VARCHAR(150)  NOT NULL,
+  email             VARCHAR(191)  NULL UNIQUE,
+  phone             VARCHAR(30)   NULL,
+  provider          VARCHAR(20)   NOT NULL DEFAULT 'email',   -- 'email' | 'google'
+  profile_image     VARCHAR(500)  NULL,
+  is_email_verified TINYINT(1)    NOT NULL DEFAULT 0,
+  password_hash     VARCHAR(255)  NULL,
+  is_admin          TINYINT(1)    NOT NULL DEFAULT 0,
+  is_active         TINYINT(1)    NOT NULL DEFAULT 1,
+  login_count       INT UNSIGNED  NOT NULL DEFAULT 0,
+  last_login        TIMESTAMP     NULL,
+  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- -----------------------------------------------------
 -- CATEGORIES
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS categories (
-  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  name          VARCHAR(150)  NOT NULL UNIQUE,
-  image_url     VARCHAR(500)  NULL,
-  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name              VARCHAR(150)  NOT NULL,
+  parent_category   ENUM('Men','Women','Kids') NOT NULL DEFAULT 'Men',
+  image_url         VARCHAR(500)  NULL,
+  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_categories_name_parent (name, parent_category),
+  INDEX idx_categories_parent (parent_category)
 ) ENGINE=InnoDB;
 
 -- -----------------------------------------------------

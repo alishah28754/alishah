@@ -3,7 +3,7 @@ const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 const { toProductJson } = require('./productController');
 
-/* GET /api/favourites - protected, returns list of Product (fromJson-compatible) */
+/** GET /api/favourites - Get user's favourites */
 const getFavourites = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
     `SELECT p.*, c.name AS category_name
@@ -17,7 +17,7 @@ const getFavourites = asyncHandler(async (req, res) => {
   return success(res, rows.map(toProductJson));
 });
 
-/* POST /api/favourites - protected, body: { product_id } */
+/** POST /api/favourites - Add favourite */
 const addFavourite = asyncHandler(async (req, res) => {
   const { product_id } = req.body;
   if (!product_id) return error(res, 'product_id is required.', 400);
@@ -32,7 +32,7 @@ const addFavourite = asyncHandler(async (req, res) => {
   return success(res, null, 'Added to favourites.', 201);
 });
 
-/* DELETE /api/favourites/:productId - protected */
+/** DELETE /api/favourites/:productId - Remove favourite */
 const removeFavourite = asyncHandler(async (req, res) => {
   await pool.query('DELETE FROM favourites WHERE user_id = ? AND product_id = ?', [
     req.user.id, req.params.productId,

@@ -76,7 +76,9 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 /* GET /api/admin/users - list all customers */
 const getAllUsers = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
-    'SELECT id, name, email, phone, is_admin, created_at FROM users ORDER BY created_at DESC'
+    `SELECT id, name, email, phone, provider, profile_image, is_email_verified,
+            is_admin, is_active, login_count, last_login, created_at
+     FROM users ORDER BY created_at DESC`
   );
   return success(res, rows);
 });
@@ -101,6 +103,19 @@ const toggleAdmin = asyncHandler(async (req, res) => {
   return success(res, { is_admin: !!newValue }, 'User role updated.');
 });
 
+/* PUT /api/admin/users/:id/toggle-active - activate/deactivate a user */
+const toggleActive = asyncHandler(async (req, res) => {
+  if (Number(req.params.id) === req.user.id) {
+    return error(res, 'You cannot deactivate your own admin account.', 400);
+  }
+  const [rows] = await pool.query('SELECT is_active FROM users WHERE id = ?', [req.params.id]);
+  if (rows.length === 0) return error(res, 'User not found.', 404);
+
+  const newValue = rows[0].is_active ? 0 : 1;
+  await pool.query('UPDATE users SET is_active = ? WHERE id = ?', [newValue, req.params.id]);
+  return success(res, { is_active: !!newValue }, 'User status updated.');
+});
+
 module.exports = {
-  getDashboardStats, getAllOrders, updateOrderStatus, getAllUsers, deleteUser, toggleAdmin,
+  getDashboardStats, getAllOrders, updateOrderStatus, getAllUsers, deleteUser, toggleAdmin, toggleActive,
 };

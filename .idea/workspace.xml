@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="547a87ba-7f23-4a6a-b77f-0d9b4963fb57" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/api/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/database/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/database/schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/node_modules/.package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/node_modules/.package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/cloudinary.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/cloudinary.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/db.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/db.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/firebase.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/firebase.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/adminController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/adminController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/authController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/authController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/bannerController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/bannerController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/cartController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/cartController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/categoryController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/categoryController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/favouriteController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/favouriteController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/orderController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/orderController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/productController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/productController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controllers/uploadController.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/controllers/uploadController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/middleware/admin.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/middleware/admin.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/middleware/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/middleware/auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/middleware/errorHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/middleware/errorHandler.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/middleware/upload.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/middleware/upload.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/adminRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/adminRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/authRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/authRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/bannerRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/bannerRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/cartRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/cartRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/categoryRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/categoryRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/favouriteRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/favouriteRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/orderRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/orderRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/paymentRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/paymentRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/productRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/productRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/uploadRoutes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/uploadRoutes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/apiResponse.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/apiResponse.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/asyncHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/asyncHandler.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/vercel.json" beforeDir="false" afterPath="$PROJECT_DIR$/vercel.json" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "alishah28754"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/alishah28754/alishah",
+    "accountId": "a1013313-4a38-46a0-9764-88dcea43f89c"
+  }
+}]]></component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 7,
+  "fromUser": false
+}]]></component>
+  <component name="ProjectId" id="3Hqj4E35w54QSY1WwOk56JX06yA" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "backend",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "C:/Users/ZERO/Downloads/ktex-backend (2)/ktex-backend",
+    "show.migrate.to.gradle.popup": "false"
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="547a87ba-7f23-4a6a-b77f-0d9b4963fb57" name="Changes" comment="" />
+      <created>1786602300558</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1786602300558</updated>
+    </task>
+    <servers />
+  </component>
+</project>

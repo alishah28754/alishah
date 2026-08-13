@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const {
-  getDashboardStats, getAllOrders, updateOrderStatus, getAllUsers, deleteUser, toggleAdmin,
+  getDashboardStats, getAllOrders, updateOrderStatus, getAllUsers, deleteUser, toggleAdmin, toggleActive,
 } = require('../controllers/adminController');
 const { requireAuth } = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/admin');
@@ -15,5 +15,6 @@ router.put('/orders/:orderNumber/status', updateOrderStatus);
 router.get('/users', getAllUsers);
 router.delete('/users/:id', deleteUser);
 router.put('/users/:id/toggle-admin', toggleAdmin);
+router.put('/users/:id/toggle-active', toggleActive);
 
 module.exports = router;
