@@ -9,6 +9,19 @@ function generateProductId() {
   return `prod-${timestamp}-${random}`;
 }
 
+function parseColorsField(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function toProductJson(row) {
   return {
     id: String(row.id),
@@ -25,6 +38,7 @@ function toProductJson(row) {
     subcategory_id: row.subcategory_id ?? null,
     description: row.description || '',
     stock: row.stock ?? 0,
+    colors: parseColorsField(row.colors),
     is_flash_sale: !!row.is_flash_sale,
     is_new_arrival: !!row.is_new_arrival,
     is_best_seller: !!row.is_best_seller,
@@ -150,7 +164,7 @@ const getProductById = asyncHandler(async (req, res) => {
 const createProduct = asyncHandler(async (req, res) => {
   const {
     name, image_url, price, original_price, discount_percent, sold_label,
-    is_premium, category, subcategory_id, description, stock,
+    is_premium, category, subcategory_id, description, stock, colors,
     is_flash_sale, is_new_arrival, is_best_seller, is_collection, is_for_you, metadata,
   } = req.body;
 
@@ -172,9 +186,9 @@ const createProduct = asyncHandler(async (req, res) => {
   const [result] = await pool.query(
     `INSERT INTO products
       (id, name, image_url, price, original_price, discount_percent, sold_label,
-       is_premium, category_id, subcategory_id, description, stock,
+       is_premium, category_id, subcategory_id, description, stock, colors,
        is_flash_sale, is_new_arrival, is_best_seller, is_collection, is_for_you, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, 
       name, 
@@ -188,6 +202,7 @@ const createProduct = asyncHandler(async (req, res) => {
       subcategory_id || null, 
       description || null, 
       stock || 0,
+      colors ? JSON.stringify(colors) : null,
       is_flash_sale ? 1 : 0, 
       is_new_arrival ? 1 : 0, 
       is_best_seller ? 1 : 0, 
@@ -245,7 +260,7 @@ const updateProduct = asyncHandler(async (req, res) => {
   // Handle other fields
   const otherFields = [
     'name', 'image_url', 'price', 'original_price', 'discount_percent', 
-    'sold_label', 'subcategory_id', 'description', 'stock', 'metadata'
+    'sold_label', 'subcategory_id', 'description', 'stock', 'colors', 'metadata'
   ];
 
   for (const key of otherFields) {
@@ -253,6 +268,7 @@ const updateProduct = asyncHandler(async (req, res) => {
       fields.push(`${key} = ?`);
       let val = req.body[key];
       if (key === 'metadata') val = val ? JSON.stringify(val) : null;
+      if (key === 'colors') val = val ? JSON.stringify(val) : null;
       if (key === 'subcategory_id') val = val || null;
       values.push(val);
     }
