@@ -43,16 +43,23 @@ async function resolveFirebaseUser(idToken) {
   let [rows] = await pool.query('SELECT * FROM users WHERE firebase_uid = ? LIMIT 1', [uid]);
 
   if (rows.length === 0) {
-    const [result] = await pool.query(
+    // `users.id` is a VARCHAR(128) PRIMARY KEY with NO default and NO
+    // auto-increment (confirmed via SHOW CREATE TABLE), so it MUST be
+    // supplied explicitly on insert or MySQL rejects the row entirely
+    // (ER_NO_DEFAULT_FOR_FIELD). The Firebase uid is already unique and a
+    // string, so we simply reuse it as the primary key -- no extra ID
+    // generation needed, and id/firebase_uid stay in sync by construction.
+    await pool.query(
       `INSERT INTO users
-        (firebase_uid, name, email, phone, provider, profile_image, is_email_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (id, firebase_uid, name, email, phone, provider, profile_image, is_email_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        uid, name || (email ? email.split('@')[0] : 'KTEX User'), email || null, phone_number || null,
+        uid, uid, name || (email ? email.split('@')[0] : 'KTEX User'),
+        email || `${uid}@ktex.local`, phone_number || null,
         provider, picture || null, decoded.email_verified ? 1 : 0,
       ]
     );
-    [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
+    [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [uid]);
   }
 
   return rows[0];
