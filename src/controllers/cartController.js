@@ -27,9 +27,12 @@ const addToCart = asyncHandler(async (req, res) => {
   const { product_id, quantity } = req.body;
   if (!product_id) return error(res, 'product_id is required.', 400);
 
-  // Check if product exists (works with string IDs)
-  const [productRows] = await pool.query('SELECT id FROM products WHERE id = ?', [product_id]);
+  // Check if product exists and has stock (works with string IDs)
+  const [productRows] = await pool.query('SELECT id, stock FROM products WHERE id = ?', [product_id]);
   if (productRows.length === 0) return error(res, 'Product not found.', 404);
+  if (Number(productRows[0].stock) <= 0) {
+    return error(res, 'This product is out of stock.', 400);
+  }
 
   await pool.query(
     `INSERT INTO cart_items (user_id, product_id, quantity)
@@ -51,6 +54,16 @@ const updateCartItem = asyncHandler(async (req, res) => {
       req.user.id, req.params.productId,
     ]);
     return success(res, null, 'Item removed from cart.');
+  }
+
+  // Re-check stock before allowing a quantity increase — a product can go
+  // out of stock while it's already sitting in someone's cart.
+  const [productRows] = await pool.query('SELECT stock FROM products WHERE id = ?', [
+    req.params.productId,
+  ]);
+  if (productRows.length === 0) return error(res, 'Product not found.', 404);
+  if (Number(productRows[0].stock) <= 0) {
+    return error(res, 'This product is out of stock.', 400);
   }
 
   const [result] = await pool.query(
