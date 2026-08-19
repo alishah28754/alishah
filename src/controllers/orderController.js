@@ -162,10 +162,44 @@ const cancelOrder = asyncHandler(async (req, res) => {
   return success(res, null, 'Order cancelled.');
 });
 
+/**
+ * DELETE /api/orders/:orderNumber - Permanently delete an order (owner only).
+ * Only allowed once the order is already 'Cancelled' (mirrors the app UI,
+ * which only shows the "Delete" button on cancelled orders). This removes
+ * the order from the DB entirely, so it also disappears from the admin
+ * panel automatically since both read the same `orders` table.
+ */
+const deleteOrder = asyncHandler(async (req, res) => {
+  const [orders] = await pool.query('SELECT * FROM orders WHERE id = ?', [req.params.orderNumber]);
+  if (orders.length === 0) return error(res, 'Order not found.', 404);
+
+  const order = orders[0];
+  if (order.user_id !== req.user.id) return error(res, 'You do not have access to this order.', 403);
+  if (order.status !== 'Cancelled') {
+    return error(res, 'Only cancelled orders can be deleted.', 400);
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.query('DELETE FROM order_items WHERE order_id = ?', [order.id]);
+    await connection.query('DELETE FROM orders WHERE id = ?', [order.id]);
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+
+  return success(res, null, 'Order deleted permanently.');
+});
+
 module.exports = {
   createOrder,
   getMyOrders,
   trackOrder,
   cancelOrder,
+  deleteOrder,
   toOrderJson,
 };
