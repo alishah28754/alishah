@@ -45,8 +45,8 @@ const getAllOrders = asyncHandler(async (req, res) => {
     const [itemRows] = await pool.query('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
     results.push({
       ...toOrderJson(order, itemRows),
-      order_number: order.order_number,
-      customer_name: order.customer_name,
+      order_number: order.id,
+      customer_name: order.full_name,
       email: order.email,
       phone: order.phone,
       address: order.address,
@@ -56,16 +56,28 @@ const getAllOrders = asyncHandler(async (req, res) => {
   return success(res, results);
 });
 
-/* PUT /api/admin/orders/:orderNumber/status - body: { status } */
+/* PUT /api/admin/orders/:orderNumber/status - body: { status }
+ * NOTE: 'Cancelled' is intentionally NOT allowed here. Admin can only move an
+ * order forward (Processing -> Confirmed -> Shipped -> Delivered). Cancelling
+ * is a customer-only action performed from the app (see orderController.cancelOrder),
+ * so the live/true cancel state always comes from the user, never the admin.
+ */
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
-  const validStatuses = ['Processing', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
+  const validStatuses = ['Processing', 'Confirmed', 'Shipped', 'Delivered'];
   if (!validStatuses.includes(status)) {
     return error(res, `status must be one of: ${validStatuses.join(', ')}`, 400);
   }
 
+  const [orderRows] = await pool.query('SELECT status FROM orders WHERE id = ?', [req.params.orderNumber]);
+  if (orderRows.length === 0) return error(res, 'Order not found.', 404);
+
+  if (orderRows[0].status === 'Cancelled') {
+    return error(res, 'This order was cancelled by the customer and cannot be updated.', 400);
+  }
+
   const [result] = await pool.query(
-    'UPDATE orders SET status = ? WHERE order_number = ?',
+    'UPDATE orders SET status = ? WHERE id = ?',
     [status, req.params.orderNumber]
   );
   if (result.affectedRows === 0) return error(res, 'Order not found.', 404);
