@@ -79,8 +79,25 @@ async function requireAuth(req, res, next) {
       return error(res, 'Authentication required. Please log in.', 401);
     }
 
-    let user = await resolveAdminUser(token);
-    if (!user) user = await resolveFirebaseUser(token);
+    let user;
+    try {
+      user = await resolveAdminUser(token);
+      if (!user) user = await resolveFirebaseUser(token);
+    } catch (resolveErr) {
+      // Genuine failures to verify the token (bad/expired Firebase token,
+      // wrong project, etc.) throw from inside admin.auth().verifyIdToken()
+      // and SHOULD map to 401. Anything else (DB/schema errors like an
+      // unknown column, connection drops, etc.) is a server bug, not an
+      // auth problem -- surfacing those as "please log in again" hides
+      // real bugs behind a fake session error, so we log the real message
+      // and return 500 instead.
+      const isTokenError = resolveErr.code && String(resolveErr.code).startsWith('auth/');
+      console.error('requireAuth resolve error:', resolveErr.code || '', resolveErr.message);
+      if (isTokenError) {
+        return error(res, 'Invalid or expired session. Please log in again.', 401);
+      }
+      return error(res, 'Server error while verifying your session. Please try again shortly.', 500);
+    }
 
     if (!user) {
       return error(res, 'Invalid or expired session. Please log in again.', 401);
@@ -110,6 +127,11 @@ async function optionalAuth(req, res, next) {
     if (user) req.user = toReqUser(user);
     next();
   } catch (err) {
+    // Log it even though we don't block the request -- previously this was
+    // swallowed completely, so a broken resolveFirebaseUser (e.g. schema
+    // mismatch) meant guest/logged-in orders silently lost their user_id
+    // with zero trace in the logs.
+    console.error('optionalAuth resolve error:', err.code || '', err.message);
     next();
   }
 }
