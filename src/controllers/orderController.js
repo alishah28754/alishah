@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const cloudinary = require('../config/cloudinary');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -15,6 +16,11 @@ function toOrderJson(orderRow, itemRows) {
     payment: orderRow.payment_method,
     tracking: orderRow.tracking_id || '',
     image: orderRow.thumbnail || (itemRows[0] ? itemRows[0].image_url : ''),
+    // Transaction proof uploaded by the shopper at checkout (EasyPaisa/JazzCash/
+    // Bank Transfer). Snake_case to match how the admin panel already reads
+    // other order fields (order_number, customer_name, etc). Empty string
+    // (not null) so Flutter's Order.fromJson() default (`?? ''`) stays simple.
+    transaction_screenshot_url: orderRow.transaction_screenshot_url || '',
     orderItems: itemRows.map((i) => ({
       name: i.name,
       price: i.price,
@@ -50,6 +56,34 @@ function mapPaymentMethod(value) {
 }
 
 /**
+ * POST /api/orders/upload-screenshot
+ * Uploads a transaction-proof screenshot to Cloudinary and returns its URL.
+ * Deliberately separate from the admin-only /api/upload endpoint — this one
+ * must work for guests too, since checkout allows guest orders (optionalAuth,
+ * same as createOrder below). The returned url is what the app then sends
+ * back as `transaction_screenshot_url` when calling POST /api/orders.
+ */
+const uploadOrderScreenshot = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return error(res, 'No screenshot file provided.', 400);
+  }
+
+  const uploadResult = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'ktex/orders' },
+      (err, result) => (err ? reject(err) : resolve(result))
+    );
+    stream.end(req.file.buffer);
+  });
+
+  return success(
+    res,
+    { url: uploadResult.secure_url, path: uploadResult.public_id },
+    'Screenshot uploaded.'
+  );
+});
+
+/**
  * POST /api/orders - Create order (guest or logged-in)
  */
 const createOrder = asyncHandler(async (req, res) => {
@@ -57,6 +91,7 @@ const createOrder = asyncHandler(async (req, res) => {
     items, // [{ product_id (string), name, price, quantity, image_url }]
     name, email, phone, address, city, zip,
     payment_method, transaction_id, account_title, account_number,
+    transaction_screenshot_url,
   } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -84,11 +119,13 @@ const createOrder = asyncHandler(async (req, res) => {
       `INSERT INTO orders
         (id, tracking_id, user_id, full_name, email, phone, address, city, zip,
          payment_method, transaction_id, account_title, account_number,
+         transaction_screenshot_url,
          subtotal, delivery_fee, total, status, item_count, thumbnail)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Processing', ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Processing', ?, ?)`,
       [
         orderId, trackingId, req.user ? req.user.id : null, name, email || null, phone, address, city, zip || null,
         mapPaymentMethod(payment_method), transaction_id || null, account_title || null, account_number || null,
+        transaction_screenshot_url || null,
         subtotal, deliveryFee, total, itemCount, thumbnail,
       ]
     );
@@ -201,5 +238,6 @@ module.exports = {
   trackOrder,
   cancelOrder,
   deleteOrder,
+  uploadOrderScreenshot,
   toOrderJson,
 };
