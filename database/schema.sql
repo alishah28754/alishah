@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS orders (
   zip               VARCHAR(20)   NULL,
   payment_method    ENUM('cod','payfast','easypaisa','jazzcash','bank') NOT NULL DEFAULT 'cod',
   transaction_id    VARCHAR(100)  NULL,
+  transaction_screenshot_url VARCHAR(500) NULL,  -- payment proof uploaded by shopper at checkout
   payfast_txn_id    VARCHAR(100)  NULL,
   subtotal          INT UNSIGNED  NOT NULL,
   total             INT UNSIGNED  NOT NULL,
