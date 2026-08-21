@@ -184,13 +184,26 @@ const trackOrder = asyncHandler(async (req, res) => {
   return success(res, toOrderJson(order, itemRows));
 });
 
-/** PUT /api/orders/:orderNumber/cancel - Cancel order (owner only) */
+/**
+ * PUT /api/orders/:orderNumber/cancel - Cancel order
+ * - Guest order (order.user_id is NULL): anyone holding the order number can
+ *   cancel it — same trust model as the public trackOrder route above.
+ * - Order placed while logged in: only the owning user (req.user) may cancel.
+ */
 const cancelOrder = asyncHandler(async (req, res) => {
   const [orders] = await pool.query('SELECT * FROM orders WHERE id = ?', [req.params.orderNumber]);
   if (orders.length === 0) return error(res, 'Order not found.', 404);
 
   const order = orders[0];
-  if (order.user_id !== req.user.id) return error(res, 'You do not have access to this order.', 403);
+
+  if (order.user_id !== null) {
+    // This order was placed by a logged-in user — require a matching login.
+    if (!req.user || order.user_id !== req.user.id) {
+      return error(res, 'You do not have access to this order.', 403);
+    }
+  }
+  // else: guest order — no ownership check, order_number alone is enough.
+
   if (order.status !== 'Processing') {
     return error(res, `Order cannot be cancelled once it is ${order.status}.`, 400);
   }
