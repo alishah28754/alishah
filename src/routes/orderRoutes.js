@@ -23,6 +23,8 @@ router.get('/', requireAuth, getMyOrders);
 // above. Logged-in users' orders are still protected by the ownership
 // check inside cancelOrder itself.
 router.put('/:orderNumber/cancel', optionalAuth, cancelOrder);
-router.delete('/:orderNumber', requireAuth, deleteOrder);
+// Guest-owned orders (user_id NULL) can be deleted by anyone holding the
+// order number, same trust model as cancel above.
+router.delete('/:orderNumber', optionalAuth, deleteOrder);
 
 module.exports = router;
