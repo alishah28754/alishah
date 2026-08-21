@@ -214,11 +214,12 @@ const cancelOrder = asyncHandler(async (req, res) => {
 
 /**
  * DELETE /api/orders/:orderNumber - Permanently delete an order.
+ * - Admin (req.user.is_admin): can delete any order regardless of owner.
  * - Guest order (order.user_id is NULL): anyone holding the order number can
  *   delete it — same trust model as cancelOrder/trackOrder above.
  * - Order placed while logged in: only the owning user (req.user) may delete.
- * Only allowed once the order is already 'Cancelled' (mirrors the app UI,
- * which only shows the "Delete" button on cancelled orders). This removes
+ * Allowed once the order is 'Cancelled' OR 'Delivered' (mirrors the app UI,
+ * which only shows the "Delete" button in those two states). This removes
  * the order from the DB entirely, so it also disappears from the admin
  * panel automatically since both read the same `orders` table.
  */
@@ -227,17 +228,18 @@ const deleteOrder = asyncHandler(async (req, res) => {
   if (orders.length === 0) return error(res, 'Order not found.', 404);
 
   const order = orders[0];
+  const isAdmin = !!(req.user && req.user.is_admin);
 
-  if (order.user_id !== null) {
+  if (!isAdmin && order.user_id !== null) {
     // This order was placed by a logged-in user — require a matching login.
     if (!req.user || order.user_id !== req.user.id) {
       return error(res, 'You do not have access to this order.', 403);
     }
   }
-  // else: guest order — no ownership check, order_number alone is enough.
+  // else: admin, or a guest order — no ownership check, order_number alone is enough.
 
-  if (order.status !== 'Cancelled') {
-    return error(res, 'Only cancelled orders can be deleted.', 400);
+  if (!['Cancelled', 'Delivered'].includes(order.status)) {
+    return error(res, 'Only cancelled or delivered orders can be deleted.', 400);
   }
 
   const connection = await pool.getConnection();
