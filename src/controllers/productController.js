@@ -2,6 +2,7 @@
 const pool = require('../config/db');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
+const { sendPushToTopic } = require('../utils/pushNotifications');
 
 function generateProductId() {
   const timestamp = Date.now();
@@ -213,7 +214,18 @@ const createProduct = asyncHandler(async (req, res) => {
   );
 
   const [rows] = await pool.query(`${BASE_SELECT} WHERE p.id = ?`, [id]);
-  return success(res, toProductJson(rows[0]), 'Product created.', 201);
+  const product = toProductJson(rows[0]);
+
+  // Fire-and-forget: announce the new product to everyone subscribed to the
+  // 'new_products' topic. Never awaited into the response — a push failure
+  // must not delay or fail product creation in the admin panel.
+  sendPushToTopic('new_products', {
+    title: 'New arrival at KTEX!',
+    body: `${product.name} just landed — check it out.`,
+    data: { productId: product.id, type: 'new_product' },
+  });
+
+  return success(res, product, 'Product created.', 201);
 });
 
 const updateProduct = asyncHandler(async (req, res) => {
