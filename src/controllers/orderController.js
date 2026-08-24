@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const cloudinary = require('../config/cloudinary');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
+const { sendPushToMysqlUser } = require('../utils/pushNotifications');
 
 /**
  * Maps DB rows to EXACT shape expected by Flutter's Order.fromJson()
@@ -149,6 +150,18 @@ const createOrder = asyncHandler(async (req, res) => {
 
     const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
     const [itemRows] = await pool.query('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
+
+    // Fire-and-forget: notify the customer their order was placed. Only
+    // logged-in orders have a linked device (guest orders have no
+    // firebase_uid to look up). Never awaited into the response — a push
+    // failure must not delay or fail the checkout itself.
+    if (req.user) {
+      sendPushToMysqlUser(req.user.id, {
+        title: 'Order placed!',
+        body: `Your order ${orderId} has been received and is being processed.`,
+        data: { orderId, status: 'Processing', type: 'order_update' },
+      });
+    }
 
     return success(res, toOrderJson(orderRows[0], itemRows), 'Order placed successfully.', 201);
   } catch (err) {
