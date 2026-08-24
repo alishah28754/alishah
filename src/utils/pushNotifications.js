@@ -40,7 +40,17 @@ async function sendPushToUser(firebaseUid, { title, body, data = {} }) {
 
   try {
     const doc = await admin.firestore().collection('users').doc(firebaseUid).get();
-    const tokens = doc.data()?.fcmTokens;
+    const docData = doc.data();
+
+    // Respect the in-app toggle (NotificationService.setNotificationsEnabled
+    // writes this). Defaults to true if the field has never been set (e.g.
+    // brand-new account that hasn't opened Settings yet). This is the real
+    // "off switch" — the app can't touch the OS-level permission, but it can
+    // stop the backend from sending in the first place.
+    const pushEnabled = docData?.preferences?.pushNotifications;
+    if (pushEnabled === false) return;
+
+    const tokens = docData?.fcmTokens;
     if (!Array.isArray(tokens) || tokens.length === 0) return;
 
     const response = await admin.messaging().sendEachForMulticast({
