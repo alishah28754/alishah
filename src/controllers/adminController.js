@@ -2,6 +2,15 @@ const pool = require('../config/db');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 const { toOrderJson } = require('./orderController');
+const { sendPushToMysqlUser } = require('../utils/pushNotifications');
+
+// Customer-facing copy per status — keep in sync with the statuses allowed
+// in updateOrderStatus below.
+const STATUS_MESSAGES = {
+  Confirmed: 'Your order has been confirmed and is being prepared.',
+  Shipped: 'Your order is on its way!',
+  Delivered: 'Your order has been delivered. Enjoy!',
+};
 
 /* GET /api/admin/stats - dashboard summary for the admin panel */
 const getDashboardStats = asyncHandler(async (req, res) => {
@@ -69,7 +78,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     return error(res, `status must be one of: ${validStatuses.join(', ')}`, 400);
   }
 
-  const [orderRows] = await pool.query('SELECT status FROM orders WHERE id = ?', [req.params.orderNumber]);
+  const [orderRows] = await pool.query('SELECT status, user_id FROM orders WHERE id = ?', [req.params.orderNumber]);
   if (orderRows.length === 0) return error(res, 'Order not found.', 404);
 
   if (orderRows[0].status === 'Cancelled') {
@@ -81,6 +90,19 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     [status, req.params.orderNumber]
   );
   if (result.affectedRows === 0) return error(res, 'Order not found.', 404);
+
+  // Fire-and-forget: notify the customer of the status change. Only
+  // logged-in orders have a linked device (guest orders have no
+  // firebase_uid). 'Processing' has its own "order placed" push sent from
+  // createOrder, so it's intentionally not repeated here.
+  const message = STATUS_MESSAGES[status];
+  if (message && orderRows[0].user_id) {
+    sendPushToMysqlUser(orderRows[0].user_id, {
+      title: `Order ${status}`,
+      body: message,
+      data: { orderId: req.params.orderNumber, status, type: 'order_update' },
+    });
+  }
 
   return success(res, null, `Order status updated to ${status}.`);
 });
