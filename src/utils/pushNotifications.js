@@ -2,6 +2,16 @@ const admin = require('../config/firebase');
 const pool = require('../config/db');
 
 /**
+ * Android notification channel to route a push into, based on its type.
+ * Must match the channel IDs created client-side in notification_service.dart
+ * (NotificationService._initChannels) — if these drift out of sync, Android
+ * silently falls back to the default channel instead of erroring.
+ */
+function channelIdForType(type) {
+  return type === 'new_product' ? 'new_products' : 'order_updates';
+}
+
+/**
  * Looks up the Firebase UID for a MySQL user id. Orders store the MySQL
  * `user_id` (see orders.user_id), but FCM tokens live in Firestore keyed
  * by `firebase_uid` (see NotificationService._saveTokenToFirestore in the
@@ -40,6 +50,13 @@ async function sendPushToUser(firebaseUid, { title, body, data = {} }) {
       data: Object.fromEntries(
         Object.entries(data).map(([k, v]) => [k, String(v)])
       ),
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: channelIdForType(data.type),
+          sound: 'default',
+        },
+      },
     });
 
     // Drop any tokens Firebase says are dead (uninstalled app, expired, etc.)
@@ -74,4 +91,32 @@ async function sendPushToMysqlUser(mysqlUserId, payload) {
   await sendPushToUser(firebaseUid, payload);
 }
 
-module.exports = { sendPushToUser, sendPushToMysqlUser, getFirebaseUid };
+/**
+ * Broadcasts to every device subscribed to an FCM topic (e.g. 'new_products').
+ * Used for announcements that aren't tied to one specific user, unlike the
+ * per-user order-update pushes above. Devices subscribe/unsubscribe to the
+ * topic client-side (see NotificationService._applyTopicSubscription).
+ * Never throws — same fire-and-forget contract as sendPushToUser.
+ */
+async function sendPushToTopic(topic, { title, body, data = {} }) {
+  try {
+    await admin.messaging().send({
+      topic,
+      notification: { title, body },
+      data: Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, String(v)])
+      ),
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: channelIdForType(data.type),
+          sound: 'default',
+        },
+      },
+    });
+  } catch (err) {
+    console.error(`Push notification to topic '${topic}' failed:`, err.message);
+  }
+}
+
+module.exports = { sendPushToUser, sendPushToMysqlUser, sendPushToTopic, getFirebaseUid };
