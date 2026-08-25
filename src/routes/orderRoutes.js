@@ -11,10 +11,7 @@ router.get('/track/:orderNumber', trackOrder);
 // Screenshot upload for checkout — guest-friendly (same as order creation
 // below), so a customer checking out without logging in can still attach
 // their transaction proof before placing the order.
-// NOTE: the shared upload middleware's fileFilter only allows fields named
-// "image" or "video" — the multipart field must be sent as "image" (not
-// "screenshot") from the client, or this will 500 with "Unexpected field".
-router.post('/upload-screenshot', optionalAuth, upload.single('image'), uploadOrderScreenshot);
+router.post('/upload-screenshot', optionalAuth, upload.single('screenshot'), uploadOrderScreenshot);
 
 // Guest checkout allowed
 router.post('/', optionalAuth, createOrder);
