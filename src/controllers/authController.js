@@ -3,18 +3,22 @@ const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
+const { sendOtpEmail } = require('../services/mailService');
 
 /**
- * NOTE on auth:
- * - The Flutter app (shoppers) still authenticates with Firebase, exactly
- *   as before -- see middleware/auth.js.
- * - The KTEX ADMIN PANEL logs in separately, with plain email + password
- *   checked against this table's password_hash column (set via
- *   database/set-admin-password.js). adminLogin below issues our own JWT
- *   for that session; requireAuth accepts either kind of token.
+ * NOTE on auth (UPDATED):
+ * - Both the Flutter app (shoppers) AND the KTEX admin panel now use our
+ *   own email+password JWT system, checked against users.password_hash.
+ * - adminLogin issues a JWT with type:'admin'; customerLogin/verifyOtp
+ *   issue one with type:'customer'. requireAuth accepts either.
+ * - Firebase is no longer used anywhere in this flow.
  */
 
-/* POST /api/auth/admin-login - public. Email + password against MySQL. */
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/* POST /api/auth/admin-login - unchanged */
 const adminLogin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -25,8 +29,6 @@ const adminLogin = asyncHandler(async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
   const user = rows[0];
 
-  // Same generic message whether the email doesn't exist or the password is
-  // wrong -- don't reveal which one it was.
   if (!user || !user.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
     return error(res, 'Invalid email or password.', 401);
   }
@@ -53,14 +55,134 @@ const adminLogin = asyncHandler(async (req, res) => {
   }, 'Logged in.');
 });
 
-/* GET /api/auth/me - protected */
+/* POST /api/auth/signup - public. Creates an unverified customer row + sends OTP. */
+const signup = asyncHandler(async (req, res) => {
+  const { name, email, password, phone } = req.body;
+
+  if (!name || !email || !password) {
+    return error(res, 'Name, email and password are required.', 400);
+  }
+
+  const [existing] = await pool.query('SELECT id, is_email_verified FROM users WHERE email = ? LIMIT 1', [email]);
+
+  if (existing.length > 0 && existing[0].is_email_verified) {
+    return error(res, 'This email is already registered. Please log in.', 400);
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const otp = generateOtp();
+  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+  if (existing.length > 0) {
+    // Row exists but was never verified (abandoned signup) -- overwrite it.
+    await pool.query(
+      `UPDATE users SET name = ?, password_hash = ?, phone = ?, provider = 'email',
+       otp_code = ?, otp_expires_at = ? WHERE email = ?`,
+      [name, passwordHash, phone || null, otp, otpExpiry, email]
+    );
+  } else {
+    await pool.query(
+      `INSERT INTO users (name, email, phone, password_hash, provider, is_email_verified, otp_code, otp_expires_at)
+       VALUES (?, ?, ?, ?, 'email', 0, ?, ?)`,
+      [name, email, phone || null, passwordHash, otp, otpExpiry]
+    );
+  }
+
+  await sendOtpEmail(email, otp);
+
+  return success(res, { email }, 'OTP sent to your email. Please verify to activate your account.');
+});
+
+/* POST /api/auth/verify-otp - public. Verifies the code and logs the user in. */
+const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return error(res, 'Email and OTP are required.', 400);
+  }
+
+  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  const user = rows[0];
+
+  if (!user) return error(res, 'User not found.', 404);
+  if (user.is_email_verified) return error(res, 'Already verified. Please log in.', 400);
+  if (user.otp_code !== otp) return error(res, 'Invalid OTP.', 400);
+  if (new Date() > new Date(user.otp_expires_at)) return error(res, 'OTP expired. Please request a new one.', 400);
+
+  await pool.query(
+    'UPDATE users SET is_email_verified = 1, otp_code = NULL, otp_expires_at = NULL WHERE email = ?',
+    [email]
+  );
+
+  const token = jwt.sign(
+    { id: user.id, type: 'customer' },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || '30d' }
+  );
+
+  return success(res, {
+    token,
+    user: { id: user.id, name: user.name, email: user.email, phone: user.phone },
+  }, 'Account verified.');
+});
+
+/* POST /api/auth/resend-otp - public */
+const resendOtp = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) return error(res, 'Email is required.', 400);
+
+  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  const user = rows[0];
+
+  if (!user) return error(res, 'User not found.', 404);
+  if (user.is_email_verified) return error(res, 'Already verified. Please log in.', 400);
+
+  const otp = generateOtp();
+  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+  await pool.query('UPDATE users SET otp_code = ?, otp_expires_at = ? WHERE email = ?', [otp, otpExpiry, email]);
+  await sendOtpEmail(email, otp);
+
+  return success(res, null, 'OTP resent.');
+});
+
+/* POST /api/auth/customer-login - public */
+const customerLogin = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return error(res, 'Email and password are required.', 400);
+  }
+
+  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  const user = rows[0];
+
+  if (!user || !user.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
+    return error(res, 'Invalid email or password.', 401);
+  }
+
+  if (!user.is_email_verified) {
+    return error(res, 'Please verify your email first.', 403);
+  }
+
+  const token = jwt.sign(
+    { id: user.id, type: 'customer' },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || '30d' }
+  );
+
+  return success(res, {
+    token,
+    user: { id: user.id, name: user.name, email: user.email, phone: user.phone },
+  }, 'Logged in.');
+});
+
+/* GET /api/auth/me - protected, unchanged */
 const getMe = asyncHandler(async (req, res) => {
   return success(res, req.user);
 });
 
-/* PUT /api/auth/profile - protected, updates the LOCAL copy (name/phone only;
-   email/password changes must happen through Firebase on the client, or via
-   database/set-admin-password.js for admin accounts) */
+/* PUT /api/auth/profile - protected, unchanged */
 const updateProfile = asyncHandler(async (req, res) => {
   const { name, phone } = req.body;
   const fields = [];
@@ -77,31 +199,10 @@ const updateProfile = asyncHandler(async (req, res) => {
   await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
 
   const [rows] = await pool.query(
-    'SELECT id, firebase_uid, name, email, phone, is_admin FROM users WHERE id = ?',
+    'SELECT id, name, email, phone, is_admin FROM users WHERE id = ?',
     [req.user.id]
   );
   return success(res, rows[0], 'Profile updated.');
 });
 
-/* POST /api/auth/sync - protected (Firebase token). Called by the Flutter
-   app right after a successful login/signup. The `users` row itself is
-   already auto-created by requireAuth (see middleware/auth.js) the moment
-   any authenticated request comes in from a new firebase_uid -- this
-   endpoint just guarantees that happens immediately at login time (rather
-   than waiting on some later cart/order call), and records the login. */
-const syncUser = asyncHandler(async (req, res) => {
-  await pool.query(
-    'UPDATE users SET login_count = login_count + 1, last_login = NOW() WHERE id = ?',
-    [req.user.id]
-  );
-
-  const [rows] = await pool.query(
-    `SELECT id, firebase_uid, name, email, phone, provider, profile_image,
-            is_email_verified, is_admin, is_active, login_count, last_login, created_at
-     FROM users WHERE id = ?`,
-    [req.user.id]
-  );
-  return success(res, rows[0], 'Synced.');
-});
-
-module.exports = { adminLogin, getMe, updateProfile, syncUser };
+module.exports = { adminLogin, signup, verifyOtp, resendOtp, customerLogin, getMe, updateProfile };
