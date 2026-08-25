@@ -1,11 +1,19 @@
 const router = require('express').Router();
-const { adminLogin, getMe, updateProfile } = require('../controllers/authController');
+const {
+  adminLogin, signup, verifyOtp, resendOtp, customerLogin, getMe, updateProfile,
+} = require('../controllers/authController');
 const { requireAuth } = require('../middleware/auth');
 
 // Admin panel login (email + password)
 router.post('/login', adminLogin);
 
-// Protected routes
+// Customer auth (Flutter app)
+router.post('/signup', signup);
+router.post('/verify-otp', verifyOtp);
+router.post('/resend-otp', resendOtp);
+router.post('/customer-login', customerLogin);
+
+// Protected routes (both admin + customer)
 router.get('/me', requireAuth, getMe);
 router.put('/profile', requireAuth, updateProfile);
 
