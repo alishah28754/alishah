@@ -23,7 +23,9 @@ async function getFirebaseUid(mysqlUserId) {
     'SELECT firebase_uid FROM users WHERE id = ? LIMIT 1',
     [mysqlUserId]
   );
-  return rows[0]?.firebase_uid || null;
+  const uid = rows[0]?.firebase_uid || null;
+  console.log(`🔎 [push-debug] mysqlUserId=${mysqlUserId} -> firebase_uid=${uid}`);
+  return uid;
 }
 
 /**
@@ -36,11 +38,17 @@ async function getFirebaseUid(mysqlUserId) {
  * so callers can fire-and-forget this.
  */
 async function sendPushToUser(firebaseUid, { title, body, data = {} }) {
-  if (!firebaseUid) return;
+  if (!firebaseUid) {
+    console.log('🔎 [push-debug] sendPushToUser called with no firebaseUid — aborting.');
+    return;
+  }
 
   try {
     const doc = await admin.firestore().collection('users').doc(firebaseUid).get();
     const docData = doc.data();
+    console.log(`🔎 [push-debug] Firestore doc exists=${doc.exists} for uid=${firebaseUid}`);
+    console.log(`🔎 [push-debug] preferences=${JSON.stringify(docData?.preferences)}`);
+    console.log(`🔎 [push-debug] fcmTokens count=${Array.isArray(docData?.fcmTokens) ? docData.fcmTokens.length : 'not an array / missing'}`);
 
     // Respect the in-app toggle (NotificationService.setNotificationsEnabled
     // writes this). Defaults to true if the field has never been set (e.g.
@@ -48,10 +56,16 @@ async function sendPushToUser(firebaseUid, { title, body, data = {} }) {
     // "off switch" — the app can't touch the OS-level permission, but it can
     // stop the backend from sending in the first place.
     const pushEnabled = docData?.preferences?.pushNotifications;
-    if (pushEnabled === false) return;
+    if (pushEnabled === false) {
+      console.log('🔎 [push-debug] pushNotifications preference is false — aborting.');
+      return;
+    }
 
     const tokens = docData?.fcmTokens;
-    if (!Array.isArray(tokens) || tokens.length === 0) return;
+    if (!Array.isArray(tokens) || tokens.length === 0) {
+      console.log('🔎 [push-debug] no fcmTokens — aborting.');
+      return;
+    }
 
     const response = await admin.messaging().sendEachForMulticast({
       tokens,
@@ -67,6 +81,13 @@ async function sendPushToUser(firebaseUid, { title, body, data = {} }) {
           sound: 'default',
         },
       },
+    });
+
+    console.log(`🔎 [push-debug] sendEachForMulticast: successCount=${response.successCount}, failureCount=${response.failureCount}`);
+    response.responses.forEach((res, i) => {
+      if (!res.success) {
+        console.log(`🔎 [push-debug] token[${i}] failed: ${res.error?.code} — ${res.error?.message}`);
+      }
     });
 
     // Drop any tokens Firebase says are dead (uninstalled app, expired, etc.)
