@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const {
-  adminLogin, signup, verifyOtp, resendOtp, customerLogin, getMe, updateProfile,
+  adminLogin, signup, verifyOtp, resendOtp, customerLogin, googleLogin, getMe, updateProfile,
 } = require('../controllers/authController');
 const { requireAuth } = require('../middleware/auth');
 
@@ -12,6 +12,7 @@ router.post('/signup', signup);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/customer-login', customerLogin);
+router.post('/google-login', googleLogin);
 
 // Protected routes (both admin + customer)
 router.get('/me', requireAuth, getMe);
