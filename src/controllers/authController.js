@@ -4,14 +4,16 @@ const pool = require('../config/db');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 const { sendOtpEmail } = require('../services/mailService');
+const admin = require('../config/firebase'); // adjust path to your firebase.js location
 
 /**
  * NOTE on auth (UPDATED):
- * - Both the Flutter app (shoppers) AND the KTEX admin panel now use our
- *   own email+password JWT system, checked against users.password_hash.
- * - adminLogin issues a JWT with type:'admin'; customerLogin/verifyOtp
- *   issue one with type:'customer'. requireAuth accepts either.
- * - Firebase is no longer used anywhere in this flow.
+ * - The Flutter app (shoppers) now supports BOTH email+password (JWT
+ *   checked against users.password_hash) AND Google Sign-In (verified via
+ *   Firebase Admin SDK, then exchanged for our own JWT below).
+ * - The KTEX admin panel uses email+password JWT only.
+ * - adminLogin issues a JWT with type:'admin'; customerLogin/verifyOtp/
+ *   googleLogin issue one with type:'customer'. requireAuth accepts either.
  */
 
 function generateOtp() {
@@ -177,6 +179,57 @@ const customerLogin = asyncHandler(async (req, res) => {
   }, 'Logged in.');
 });
 
+/* POST /api/auth/google-login - public. Verifies Firebase ID token, creates/logs in user. */
+const googleLogin = asyncHandler(async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return error(res, 'ID token is required.', 400);
+  }
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(idToken);
+  } catch (err) {
+    return error(res, 'Invalid or expired Google token.', 401);
+  }
+
+  const { email, name, phone_number } = decoded;
+
+  if (!email) {
+    return error(res, 'Google account has no email.', 400);
+  }
+
+  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  let user = rows[0];
+
+  if (!user) {
+    // New user - create it. is_email_verified = 1 since Google already verified it.
+    const [result] = await pool.query(
+      `INSERT INTO users (name, email, phone, provider, is_email_verified)
+       VALUES (?, ?, ?, 'google', 1)`,
+      [name || 'User', email, phone_number || null]
+    );
+    const [newRows] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
+    user = newRows[0];
+  } else if (!user.is_email_verified) {
+    // Existing unverified row (e.g. abandoned email signup) - Google verified it now.
+    await pool.query('UPDATE users SET is_email_verified = 1 WHERE id = ?', [user.id]);
+    user.is_email_verified = 1;
+  }
+
+  const token = jwt.sign(
+    { id: user.id, type: 'customer' },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || '30d' }
+  );
+
+  return success(res, {
+    token,
+    user: { id: user.id, name: user.name, email: user.email, phone: user.phone },
+  }, 'Logged in.');
+});
+
 /* GET /api/auth/me - protected, unchanged */
 const getMe = asyncHandler(async (req, res) => {
   return success(res, req.user);
@@ -205,4 +258,13 @@ const updateProfile = asyncHandler(async (req, res) => {
   return success(res, rows[0], 'Profile updated.');
 });
 
-module.exports = { adminLogin, signup, verifyOtp, resendOtp, customerLogin, getMe, updateProfile };
+module.exports = {
+  adminLogin,
+  signup,
+  verifyOtp,
+  resendOtp,
+  customerLogin,
+  googleLogin,
+  getMe,
+  updateProfile,
+};
