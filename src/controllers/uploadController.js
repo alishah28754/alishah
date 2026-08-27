@@ -12,22 +12,32 @@ const uploadImage = (req, res) => {
     return error(res, 'Cloudinary is not configured. Please set CLOUDINARY_* env vars.', 503);
   }
 
-  const type = ['products', 'categories', 'banners'].includes(req.query.type) ? req.query.type : 'products';
+  // ✅ FIX: added 'videos' to the allowed type list. Previously any
+  // ?type=videos request silently fell back to 'products', and — more
+  // importantly — resource_type below was hardcoded to 'image', which
+  // makes Cloudinary reject/corrupt actual video uploads.
+  const type = ['products', 'categories', 'banners', 'videos'].includes(req.query.type)
+    ? req.query.type
+    : 'products';
+
+  // ✅ FIX: pick the correct Cloudinary resource_type based on what's being
+  // uploaded, instead of always sending 'image'.
+  const resourceType = type === 'videos' ? 'video' : 'image';
 
   const uploadStream = cloudinary.uploader.upload_stream(
     {
       folder: `ktex/${type}`,
-      resource_type: 'image',
+      resource_type: resourceType,
     },
     (err, result) => {
       if (err) {
         console.error('Cloudinary upload failed:', err.message);
-        return error(res, 'Image upload failed. Please try again.', 500);
+        return error(res, 'Upload failed. Please try again.', 500);
       }
       return success(
         res,
         { url: result.secure_url, path: result.public_id },
-        'Image uploaded.',
+        'Upload complete.',
         201
       );
     }
