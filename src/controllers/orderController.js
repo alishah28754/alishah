@@ -17,10 +17,6 @@ function toOrderJson(orderRow, itemRows) {
     payment: orderRow.payment_method,
     tracking: orderRow.tracking_id || '',
     image: orderRow.thumbnail || (itemRows[0] ? itemRows[0].image_url : ''),
-    // Transaction proof uploaded by the shopper at checkout (EasyPaisa/JazzCash/
-    // Bank Transfer). Snake_case to match how the admin panel already reads
-    // other order fields (order_number, customer_name, etc). Empty string
-    // (not null) so Flutter's Order.fromJson() default (`?? ''`) stays simple.
     transaction_screenshot_url: orderRow.transaction_screenshot_url || '',
     orderItems: itemRows.map((i) => ({
       name: i.name,
@@ -42,8 +38,6 @@ function generateTrackingId() {
   return `TRK${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-// Flutter sends 'bank' for Bank Transfer, but the DB enum expects 'bank_transfer'.
-// Map any incoming payment method to the exact enum value stored in `orders`.
 const PAYMENT_METHOD_MAP = {
   cod: 'cod',
   easypaisa: 'easypaisa',
@@ -58,11 +52,6 @@ function mapPaymentMethod(value) {
 
 /**
  * POST /api/orders/upload-screenshot
- * Uploads a transaction-proof screenshot to Cloudinary and returns its URL.
- * Deliberately separate from the admin-only /api/upload endpoint — this one
- * must work for guests too, since checkout allows guest orders (optionalAuth,
- * same as createOrder below). The returned url is what the app then sends
- * back as `transaction_screenshot_url` when calling POST /api/orders.
  */
 const uploadOrderScreenshot = asyncHandler(async (req, res) => {
   if (!req.file) {
@@ -89,7 +78,7 @@ const uploadOrderScreenshot = asyncHandler(async (req, res) => {
  */
 const createOrder = asyncHandler(async (req, res) => {
   const {
-    items, // [{ product_id (string), name, price, quantity, image_url }]
+    items,
     name, email, phone, address, city, zip,
     payment_method, transaction_id, account_title, account_number,
     transaction_screenshot_url,
@@ -115,7 +104,6 @@ const createOrder = asyncHandler(async (req, res) => {
     const orderId = generateOrderId();
     const trackingId = generateTrackingId();
 
-    // Insert order
     await connection.query(
       `INSERT INTO orders
         (id, tracking_id, user_id, full_name, email, phone, address, city, zip,
@@ -131,7 +119,6 @@ const createOrder = asyncHandler(async (req, res) => {
       ]
     );
 
-    // Insert order items - accepts string product_id
     for (const item of items) {
       const productId = item.product_id || null;
       await connection.query(
@@ -141,7 +128,6 @@ const createOrder = asyncHandler(async (req, res) => {
       );
     }
 
-    // Clear cart if logged in
     if (req.user) {
       await connection.query('DELETE FROM cart_items WHERE user_id = ?', [req.user.id]);
     }
@@ -151,13 +137,9 @@ const createOrder = asyncHandler(async (req, res) => {
     const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
     const [itemRows] = await pool.query('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
 
-    // Fire-and-forget: notify the customer their order was placed. Only
-    // logged-in orders have a linked device (guest orders have no
-    // firebase_uid to look up). Never awaited into the response — a push
-    // failure must not delay or fail the checkout itself.
     if (req.user) {
       sendPushToMysqlUser(req.user.id, {
-        title: 'Order placed!',
+        title: 'Order placed! 🛍️',
         body: `Your order ${orderId} has been received and is being processed.`,
         data: { orderId, status: 'Processing', type: 'order_update' },
       });
@@ -172,7 +154,9 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 });
 
-/** GET /api/orders - Current user's orders */
+/**
+ * GET /api/orders/my-orders - Current user's orders
+ */
 const getMyOrders = asyncHandler(async (req, res) => {
   const [orders] = await pool.query(
     'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC',
@@ -187,7 +171,9 @@ const getMyOrders = asyncHandler(async (req, res) => {
   return success(res, results);
 });
 
-/** GET /api/orders/track/:orderNumber - Public tracking */
+/**
+ * GET /api/orders/track/:orderNumber - Public tracking
+ */
 const trackOrder = asyncHandler(async (req, res) => {
   const [orders] = await pool.query('SELECT * FROM orders WHERE id = ?', [req.params.orderNumber]);
   if (orders.length === 0) return error(res, 'Order not found. Check your order number.', 404);
@@ -199,9 +185,6 @@ const trackOrder = asyncHandler(async (req, res) => {
 
 /**
  * PUT /api/orders/:orderNumber/cancel - Cancel order
- * - Guest order (order.user_id is NULL): anyone holding the order number can
- *   cancel it — same trust model as the public trackOrder route above.
- * - Order placed while logged in: only the owning user (req.user) may cancel.
  */
 const cancelOrder = asyncHandler(async (req, res) => {
   const [orders] = await pool.query('SELECT * FROM orders WHERE id = ?', [req.params.orderNumber]);
@@ -210,31 +193,31 @@ const cancelOrder = asyncHandler(async (req, res) => {
   const order = orders[0];
 
   if (order.user_id !== null) {
-    // This order was placed by a logged-in user — require a matching login.
     if (!req.user || order.user_id !== req.user.id) {
       return error(res, 'You do not have access to this order.', 403);
     }
   }
-  // else: guest order — no ownership check, order_number alone is enough.
 
   if (order.status !== 'Processing') {
     return error(res, `Order cannot be cancelled once it is ${order.status}.`, 400);
   }
 
   await pool.query("UPDATE orders SET status = 'Cancelled' WHERE id = ?", [order.id]);
+  
+  // Send notification for cancellation
+  if (order.user_id) {
+    sendPushToMysqlUser(order.user_id, {
+      title: 'Order Cancelled',
+      body: `Your order ${order.id} has been cancelled.`,
+      data: { orderId: order.id, status: 'Cancelled', type: 'order_update' },
+    });
+  }
+  
   return success(res, null, 'Order cancelled.');
 });
 
 /**
- * DELETE /api/orders/:orderNumber - Permanently delete an order.
- * - Admin (req.user.is_admin): can delete any order regardless of owner.
- * - Guest order (order.user_id is NULL): anyone holding the order number can
- *   delete it — same trust model as cancelOrder/trackOrder above.
- * - Order placed while logged in: only the owning user (req.user) may delete.
- * Allowed once the order is 'Cancelled' OR 'Delivered' (mirrors the app UI,
- * which only shows the "Delete" button in those two states). This removes
- * the order from the DB entirely, so it also disappears from the admin
- * panel automatically since both read the same `orders` table.
+ * DELETE /api/orders/:orderNumber - Permanently delete order
  */
 const deleteOrder = asyncHandler(async (req, res) => {
   const [orders] = await pool.query('SELECT * FROM orders WHERE id = ?', [req.params.orderNumber]);
@@ -244,12 +227,10 @@ const deleteOrder = asyncHandler(async (req, res) => {
   const isAdmin = !!(req.user && req.user.is_admin);
 
   if (!isAdmin && order.user_id !== null) {
-    // This order was placed by a logged-in user — require a matching login.
     if (!req.user || order.user_id !== req.user.id) {
       return error(res, 'You do not have access to this order.', 403);
     }
   }
-  // else: admin, or a guest order — no ownership check, order_number alone is enough.
 
   if (!['Cancelled', 'Delivered'].includes(order.status)) {
     return error(res, 'Only cancelled or delivered orders can be deleted.', 400);
@@ -271,6 +252,76 @@ const deleteOrder = asyncHandler(async (req, res) => {
   return success(res, null, 'Order deleted permanently.');
 });
 
+/**
+ * ✅ NEW: PUT /api/orders/:orderNumber/status - Update order status (Admin only)
+ * Admin panel se status change karne par notification bhejta hai
+ */
+const updateOrderStatus = asyncHandler(async (req, res) => {
+  const { orderNumber } = req.params;
+  const { status } = req.body;
+
+  // Allowed status values
+  const allowedStatuses = ['Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'];
+  if (!allowedStatuses.includes(status)) {
+    return error(res, 'Invalid status value. Allowed: ' + allowedStatuses.join(', '), 400);
+  }
+
+  // Check if order exists
+  const [orders] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderNumber]);
+  if (orders.length === 0) {
+    return error(res, 'Order not found.', 404);
+  }
+
+  const order = orders[0];
+
+  // Update status
+  await pool.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderNumber]);
+
+  // ✅ Send push notification to user (if logged-in user)
+  if (order.user_id) {
+    const statusMessages = {
+      'Processing': 'Your order has been confirmed and is being processed.',
+      'Shipped': 'Your order has been shipped! 🚚',
+      'Delivered': 'Your order has been delivered successfully! ✅',
+      'Cancelled': 'Your order has been cancelled.',
+      'Refunded': 'Your order has been refunded.'
+    };
+
+    await sendPushToMysqlUser(order.user_id, {
+      title: `Order ${status}`,
+      body: statusMessages[status] || `Your order ${orderNumber} status updated to ${status}`,
+      data: { 
+        orderId: orderNumber, 
+        status: status, 
+        type: 'order_update' 
+      },
+    });
+
+    console.log(`🔔 [Order] Push notification sent to user ${order.user_id} for order ${orderNumber} status: ${status}`);
+  }
+
+  return success(res, { orderNumber, status }, `Order status updated to ${status}`);
+});
+
+/**
+ * ✅ NEW: GET /api/orders/admin/all - Get all orders (Admin only)
+ * Admin panel ke liye saare orders with user details
+ */
+const getAllOrders = asyncHandler(async (req, res) => {
+  const [orders] = await pool.query(`
+    SELECT 
+      o.*,
+      u.full_name as customer_name,
+      u.email as customer_email,
+      u.phone as customer_phone
+    FROM orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    ORDER BY o.created_at DESC
+  `);
+
+  return success(res, orders);
+});
+
 module.exports = {
   createOrder,
   getMyOrders,
@@ -278,5 +329,7 @@ module.exports = {
   cancelOrder,
   deleteOrder,
   uploadOrderScreenshot,
+  updateOrderStatus,
+  getAllOrders,
   toOrderJson,
 };
