@@ -258,6 +258,31 @@ const updateProfile = asyncHandler(async (req, res) => {
   return success(res, rows[0], 'Profile updated.');
 });
 
+/* PUT /api/auth/fcm-token - protected. Registers/updates this device's FCM
+ * token against the JWT-authenticated user row. Read by
+ * utils/pushNotifications.js (sendPushToMysqlUser) when sending order-status
+ * pushes. De-duplicates so repeated calls with the same token are a no-op. */
+const updateFcmToken = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+  if (!token) return error(res, 'FCM token is required.', 400);
+
+  const [rows] = await pool.query('SELECT fcm_tokens FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+  let tokens = [];
+  try {
+    tokens = rows[0]?.fcm_tokens ? JSON.parse(rows[0].fcm_tokens) : [];
+    if (!Array.isArray(tokens)) tokens = [];
+  } catch (_) {
+    tokens = [];
+  }
+
+  if (!tokens.includes(token)) {
+    tokens.push(token);
+    await pool.query('UPDATE users SET fcm_tokens = ? WHERE id = ?', [JSON.stringify(tokens), req.user.id]);
+  }
+
+  return success(res, null, 'FCM token registered.');
+});
+
 module.exports = {
   adminLogin,
   signup,
@@ -267,4 +292,5 @@ module.exports = {
   googleLogin,
   getMe,
   updateProfile,
+  updateFcmToken,
 };
