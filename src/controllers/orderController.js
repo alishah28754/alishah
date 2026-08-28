@@ -204,7 +204,6 @@ const cancelOrder = asyncHandler(async (req, res) => {
 
   await pool.query("UPDATE orders SET status = 'Cancelled' WHERE id = ?", [order.id]);
   
-  // Send notification for cancellation
   if (order.user_id) {
     sendPushToMysqlUser(order.user_id, {
       title: 'Order Cancelled',
@@ -253,31 +252,25 @@ const deleteOrder = asyncHandler(async (req, res) => {
 });
 
 /**
- * ✅ NEW: PUT /api/orders/:orderNumber/status - Update order status (Admin only)
- * Admin panel se status change karne par notification bhejta hai
+ * ✅ PUT /api/orders/:orderNumber/status - Update order status (Admin only)
  */
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const { orderNumber } = req.params;
   const { status } = req.body;
 
-  // Allowed status values
   const allowedStatuses = ['Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'];
   if (!allowedStatuses.includes(status)) {
     return error(res, 'Invalid status value. Allowed: ' + allowedStatuses.join(', '), 400);
   }
 
-  // Check if order exists
   const [orders] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderNumber]);
   if (orders.length === 0) {
     return error(res, 'Order not found.', 404);
   }
 
   const order = orders[0];
-
-  // Update status
   await pool.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderNumber]);
 
-  // ✅ Send push notification to user (if logged-in user)
   if (order.user_id) {
     const statusMessages = {
       'Processing': 'Your order has been confirmed and is being processed.',
@@ -304,8 +297,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 });
 
 /**
- * ✅ NEW: GET /api/orders/admin/all - Get all orders (Admin only)
- * Admin panel ke liye saare orders with user details
+ * ✅ GET /api/orders/admin/all - Get all orders (Admin only)
  */
 const getAllOrders = asyncHandler(async (req, res) => {
   const [orders] = await pool.query(`
@@ -322,6 +314,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
   return success(res, orders);
 });
 
+// ✅ EXPORT ALL FUNCTIONS
 module.exports = {
   createOrder,
   getMyOrders,
