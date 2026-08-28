@@ -4,26 +4,16 @@ const pool = require('../config/db');
 /**
  * Android notification channel to route a push into, based on its type.
  * Must match the channel IDs created client-side in notification_service.dart
- * (NotificationService._initChannels) — if these drift out of sync, Android
- * silently falls back to the default channel instead of erroring.
  */
 function channelIdForType(type) {
+  if (type === 'order_update' || type === 'order_updates') {
+    return 'order_updates';
+  }
   return type === 'new_product' ? 'new_products' : 'order_updates';
 }
 
 /**
  * Sends a push notification to every device registered for a single user.
- * - Reads the fcm_tokens JSON array straight off the MySQL `users` row.
- *   (Previously this looked up a Firebase Auth UID and read tokens from
- *   Firestore — that silently never worked for email/password customers,
- *   since they never get a Firebase Auth session client-side, so
- *   FirebaseAuth.instance.currentUser was always null and no token was
- *   ever saved for them.)
- * - Sends to all of them (sendEachForMulticast).
- * - Cleans up any tokens Firebase reports as invalid/unregistered, so the
- *   array doesn't grow stale forever.
- * Never throws — a failed/missing token should never break an order flow,
- * so callers can fire-and-forget this.
  */
 async function sendPushToMysqlUser(mysqlUserId, { title, body, data = {} }) {
   if (!mysqlUserId) {
@@ -60,7 +50,6 @@ async function sendPushToMysqlUser(mysqlUserId, { title, body, data = {} }) {
     const response = await admin.messaging().sendEachForMulticast({
       tokens,
       notification: { title, body },
-      // FCM data payloads must be string-only key/value pairs.
       data: Object.fromEntries(
         Object.entries(data).map(([k, v]) => [k, String(v)])
       ),
@@ -69,6 +58,14 @@ async function sendPushToMysqlUser(mysqlUserId, { title, body, data = {} }) {
         notification: {
           channelId: channelIdForType(data.type),
           sound: 'default',
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          },
         },
       },
     });
@@ -80,7 +77,7 @@ async function sendPushToMysqlUser(mysqlUserId, { title, body, data = {} }) {
       }
     });
 
-    // Drop any tokens Firebase says are dead (uninstalled app, expired, etc.)
+    // Drop any tokens Firebase says are dead
     const deadTokens = [];
     response.responses.forEach((res, i) => {
       if (!res.success) {
@@ -100,19 +97,15 @@ async function sendPushToMysqlUser(mysqlUserId, { title, body, data = {} }) {
         JSON.stringify(survivingTokens),
         mysqlUserId,
       ]);
+      console.log(`🔎 [push-debug] removed ${deadTokens.length} dead tokens`);
     }
   } catch (err) {
-    // Log only — notification delivery is best-effort, never fatal.
     console.error(`Push notification failed for user ${mysqlUserId}:`, err.message);
   }
 }
 
 /**
- * Broadcasts to every device subscribed to an FCM topic (e.g. 'new_products').
- * Used for announcements that aren't tied to one specific user, unlike the
- * per-user order-update pushes above. Devices subscribe/unsubscribe to the
- * topic client-side (see NotificationService._applyTopicSubscription).
- * Never throws — same fire-and-forget contract as sendPushToMysqlUser.
+ * Broadcasts to every device subscribed to an FCM topic
  */
 async function sendPushToTopic(topic, { title, body, data = {} }) {
   try {
@@ -129,7 +122,16 @@ async function sendPushToTopic(topic, { title, body, data = {} }) {
           sound: 'default',
         },
       },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          },
+        },
+      },
     });
+    console.log(`✅ Push sent to topic: ${topic}`);
   } catch (err) {
     console.error(`Push notification to topic '${topic}' failed:`, err.message);
   }
