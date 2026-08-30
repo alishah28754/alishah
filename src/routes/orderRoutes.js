@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, optionalAuth } = require('../middleware/auth');
 const multer = require('multer');
 
 const orderController = require('../controllers/orderController');
@@ -37,7 +37,13 @@ const upload = multer({
 });
 
 // Guest/User routes
-router.post('/', createOrder);
+// optionalAuth: guest checkout still works, but if a valid JWT is sent
+// (logged-in users always send one via ApiService's auth:true), req.user
+// gets populated so createOrder correctly links the order to the user_id.
+// Without this, every order was saved with user_id = NULL regardless of
+// login state, which silently broke order-status push notifications
+// (adminController.updateOrderStatus only sends a push when user_id is set).
+router.post('/', optionalAuth, createOrder);
 router.get('/my-orders', requireAuth, getMyOrders);
 router.get('/track/:orderNumber', trackOrder);
 router.put('/:orderNumber/cancel', cancelOrder);
