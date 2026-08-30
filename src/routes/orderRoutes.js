@@ -1,12 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { protect, admin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
 
-// Import all controller functions with fallbacks
 const orderController = require('../controllers/orderController');
-
-// Destructure with safe fallbacks
 const {
   createOrder = () => {},
   getMyOrders = () => {},
@@ -18,9 +15,16 @@ const {
   getAllOrders = () => {},
 } = orderController;
 
-// Multer setup for screenshot upload
+// Simple admin-only gate: requireAuth already attaches req.user
+function requireAdmin(req, res, next) {
+  if (!req.user || !req.user.is_admin) {
+    return res.status(403).json({ success: false, message: 'Admin access required.' });
+  }
+  next();
+}
+
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
@@ -32,23 +36,22 @@ const upload = multer({
   }
 });
 
-// ✅ Guest/User routes
+// Guest/User routes
 router.post('/', createOrder);
-router.get('/my-orders', protect, getMyOrders);
+router.get('/my-orders', requireAuth, getMyOrders);
 router.get('/track/:orderNumber', trackOrder);
 router.put('/:orderNumber/cancel', cancelOrder);
 router.delete('/:orderNumber', deleteOrder);
 router.post('/upload-screenshot', upload.single('screenshot'), uploadOrderScreenshot);
 
-// ✅ Admin routes (check if functions exist before using)
+// Admin routes
 if (typeof updateOrderStatus === 'function') {
-  router.put('/:orderNumber/status', protect, admin, updateOrderStatus);
+  router.put('/:orderNumber/status', requireAuth, requireAdmin, updateOrderStatus);
 } else {
   console.warn('⚠️ updateOrderStatus function not found - route skipped');
 }
-
 if (typeof getAllOrders === 'function') {
-  router.get('/admin/all', protect, admin, getAllOrders);
+  router.get('/admin/all', requireAuth, requireAdmin, getAllOrders);
 } else {
   console.warn('⚠️ getAllOrders function not found - route skipped');
 }
