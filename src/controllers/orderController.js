@@ -3,6 +3,7 @@ const cloudinary = require('../config/cloudinary');
 const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 const { sendPushToMysqlUser } = require('../utils/pushNotifications');
+const { sendOrderStatusEmail } = require('../services/mailService');
 
 /**
  * Maps DB rows to EXACT shape expected by Flutter's Order.fromJson()
@@ -291,6 +292,14 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     });
 
     console.log(`🔔 [Order] Push notification sent to user ${order.user_id} for order ${orderNumber} status: ${status}`);
+  }
+
+  // ✅ FIX: sendOrderStatusEmail existed in mailService.js but was never called.
+  // Fires for both guest and logged-in orders as long as an email was captured.
+  if (order.email) {
+    sendOrderStatusEmail(order.email, orderNumber, status, order.full_name).catch((e) => {
+      console.error(`❌ [Order] Status email failed for ${orderNumber}:`, e.message);
+    });
   }
 
   return success(res, { orderNumber, status }, `Order status updated to ${status}`);
