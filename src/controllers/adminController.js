@@ -3,6 +3,7 @@ const { success, error } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 const { toOrderJson } = require('./orderController');
 const { sendPushToMysqlUser } = require('../utils/pushNotifications');
+const { sendOrderStatusEmail } = require('../services/mailService');
 
 // Customer-facing copy per status — keep in sync with the statuses allowed
 // in updateOrderStatus below.
@@ -78,7 +79,10 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     return error(res, `status must be one of: ${validStatuses.join(', ')}`, 400);
   }
 
-  const [orderRows] = await pool.query('SELECT status, user_id FROM orders WHERE id = ?', [req.params.orderNumber]);
+  const [orderRows] = await pool.query(
+    'SELECT status, user_id, email, full_name FROM orders WHERE id = ?',
+    [req.params.orderNumber]
+  );
   if (orderRows.length === 0) return error(res, 'Order not found.', 404);
 
   if (orderRows[0].status === 'Cancelled') {
@@ -101,6 +105,17 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       title: `Order ${status}`,
       body: message,
       data: { orderId: req.params.orderNumber, status, type: 'order_update' },
+    });
+  }
+
+  // ✅ FIX: this was the actual controller the admin panel hits
+  // (PUT /api/admin/orders/:orderNumber/status) — orderController.js's
+  // updateOrderStatus is a separate, unused-by-the-admin-panel function.
+  // Email fires regardless of whether a push message/user_id exists, since
+  // guest orders (no user_id, no push) still have an email on file.
+  if (orderRows[0].email) {
+    sendOrderStatusEmail(orderRows[0].email, req.params.orderNumber, status, orderRows[0].full_name).catch((e) => {
+      console.error(`❌ [Admin] Status email failed for ${req.params.orderNumber}:`, e.message);
     });
   }
 
