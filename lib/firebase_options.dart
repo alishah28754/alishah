@@ -54,9 +54,9 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyANByqpD17pjW9iF0oK3TEoZLhmXu1w1YE',
-    appId: '1:478471589091:android:c63e9d93252b12c51bc9d6',
-    messagingSenderId: '478471589091',
-    projectId: 'ktex-36211',
-    storageBucket: 'ktex-36211.firebasestorage.app',
+    appId: '1:789428609190:android:f3d033270f82133c1c9467',
+    messagingSenderId: '789428609190',
+    projectId: 'ktex-c2485',
+    storageBucket: 'ktex-c2485.firebasestorage.app',
   );
 }
