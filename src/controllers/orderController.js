@@ -80,16 +80,30 @@ const uploadOrderScreenshot = asyncHandler(async (req, res) => {
 const createOrder = asyncHandler(async (req, res) => {
   const {
     items,
-    name, email, phone, address, city, zip,
+    name, phone, address, city, zip,
     payment_method, transaction_id, account_title, account_number,
     transaction_screenshot_url,
   } = req.body;
+  let { email } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return error(res, 'items array is required.', 400);
   }
   if (!name || !phone || !address || !city) {
     return error(res, 'name, phone, address and city are required.', 400);
+  }
+
+  // Never trust a client-supplied email for a logged-in order — the app can
+  // send a stale/cached value (e.g. after switching accounts) even though
+  // req.user correctly reflects who's authenticated via the JWT. Always
+  // pull the email from the authenticated user's own DB record instead.
+  // Guest checkouts (no req.user) still fall back to the client-supplied
+  // email since there's no account to look it up from.
+  if (req.user) {
+    const [userRows] = await pool.query('SELECT email FROM users WHERE id = ?', [req.user.id]);
+    if (userRows[0]?.email) {
+      email = userRows[0].email;
+    }
   }
 
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
