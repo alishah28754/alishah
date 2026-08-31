@@ -230,6 +230,61 @@ const googleLogin = asyncHandler(async (req, res) => {
   }, 'Logged in.');
 });
 
+/* POST /api/auth/forgot-password - public. Sends a 6-digit reset code to
+ * the account's email, reusing the same otp_code/otp_expires_at columns
+ * as signup. Does NOT touch is_email_verified. */
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) return error(res, 'Email is required.', 400);
+
+  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  const user = rows[0];
+
+  // Don't reveal whether the email exists — respond the same way either way.
+  if (!user) {
+    return success(res, null, 'If that email is registered, a reset code has been sent.');
+  }
+
+  const otp = generateOtp();
+  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+  await pool.query('UPDATE users SET otp_code = ?, otp_expires_at = ? WHERE email = ?', [otp, otpExpiry, email]);
+  await sendOtpEmail(email, otp);
+
+  return success(res, null, 'If that email is registered, a reset code has been sent.');
+});
+
+/* POST /api/auth/reset-password - public. Verifies the code and sets the
+ * new password in one call, then clears the code so it can't be reused. */
+const resetPassword = asyncHandler(async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return error(res, 'Email, OTP and new password are required.', 400);
+  }
+  if (newPassword.length < 6) {
+    return error(res, 'Password must be at least 6 characters.', 400);
+  }
+
+  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  const user = rows[0];
+
+  if (!user) return error(res, 'Invalid OTP.', 400);
+  if (!user.otp_code || user.otp_code !== otp) return error(res, 'Invalid OTP.', 400);
+  if (!user.otp_expires_at || new Date() > new Date(user.otp_expires_at)) {
+    return error(res, 'OTP expired. Please request a new one.', 400);
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  await pool.query(
+    'UPDATE users SET password_hash = ?, otp_code = NULL, otp_expires_at = NULL WHERE email = ?',
+    [passwordHash, email]
+  );
+
+  return success(res, null, 'Password updated. Please log in with your new password.');
+});
+
 /* GET /api/auth/me - protected, unchanged */
 const getMe = asyncHandler(async (req, res) => {
   return success(res, req.user);
@@ -290,6 +345,8 @@ module.exports = {
   resendOtp,
   customerLogin,
   googleLogin,
+  forgotPassword,
+  resetPassword,
   getMe,
   updateProfile,
   updateFcmToken,
