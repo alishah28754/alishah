@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  @apply bg-cream text-ink font-sans;
+}
+
+::selection {
+  background: #D3AF6440;
+}
+
+/* subtle custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CFC4C5; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #7E7576; }
