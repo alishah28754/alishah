@@ -8,12 +8,17 @@ const admin = require('../config/firebase'); // adjust path to your firebase.js 
 
 /**
  * NOTE on auth (UPDATED):
- * - The Flutter app (shoppers) now supports BOTH email+password (JWT
- *   checked against users.password_hash) AND Google Sign-In (verified via
- *   Firebase Admin SDK, then exchanged for our own JWT below).
+ * - The Flutter app (shoppers) now supports email+password (JWT checked
+ *   against users.password_hash) AND any Firebase social provider
+ *   (Google, Facebook, etc.) via socialLogin below, verified through the
+ *   Firebase Admin SDK and exchanged for our own JWT.
+ * - socialLogin matches users by firebase_uid first, falling back to
+ *   email only to link an existing email/password row to a new Firebase
+ *   login (so Google/Facebook accounts with the same email don't get
+ *   silently merged with each other without going through firebase_uid).
  * - The KTEX admin panel uses email+password JWT only.
  * - adminLogin issues a JWT with type:'admin'; customerLogin/verifyOtp/
- *   googleLogin issue one with type:'customer'. requireAuth accepts either.
+ *   socialLogin issue one with type:'customer'. requireAuth accepts either.
  */
 
 function generateOtp() {
@@ -179,8 +184,12 @@ const customerLogin = asyncHandler(async (req, res) => {
   }, 'Logged in.');
 });
 
-/* POST /api/auth/google-login - public. Verifies Firebase ID token, creates/logs in user. */
-const googleLogin = asyncHandler(async (req, res) => {
+/* POST /api/auth/google-login - public. Verifies a Firebase ID token from
+ * ANY Firebase provider (Google, Facebook, etc.) and creates/logs in the
+ * matching user. Route path kept as "google-login" for backward
+ * compatibility with the existing app build; the app can also call this
+ * for Facebook Sign-In without any app-side route change. */
+const socialLogin = asyncHandler(async (req, res) => {
   const { idToken } = req.body;
 
   if (!idToken) {
@@ -191,31 +200,45 @@ const googleLogin = asyncHandler(async (req, res) => {
   try {
     decoded = await admin.auth().verifyIdToken(idToken);
   } catch (err) {
-    return error(res, 'Invalid or expired Google token.', 401);
+    return error(res, 'Invalid or expired token.', 401);
   }
 
-  const { email, name, phone_number } = decoded;
+  const { uid, email, name, phone_number, firebase } = decoded;
+  const provider = firebase?.sign_in_provider || 'unknown'; // e.g. 'google.com', 'facebook.com'
 
   if (!email) {
-    return error(res, 'Google account has no email.', 400);
+    return error(res, 'Account has no email.', 400);
   }
 
-  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
-  let user = rows[0];
+  // Match by firebase_uid first (authoritative for this specific
+  // provider sign-in). Fall back to email only to link a pre-existing
+  // email/password row that hasn't been tied to a firebase_uid yet.
+  const [byUid] = await pool.query('SELECT * FROM users WHERE firebase_uid = ? LIMIT 1', [uid]);
+  let user = byUid[0];
 
   if (!user) {
-    // New user - create it. is_email_verified = 1 since Google already verified it.
-    const [result] = await pool.query(
-      `INSERT INTO users (name, email, phone, provider, is_email_verified)
-       VALUES (?, ?, ?, 'google', 1)`,
-      [name || 'User', email, phone_number || null]
-    );
-    const [newRows] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
-    user = newRows[0];
-  } else if (!user.is_email_verified) {
-    // Existing unverified row (e.g. abandoned email signup) - Google verified it now.
-    await pool.query('UPDATE users SET is_email_verified = 1 WHERE id = ?', [user.id]);
-    user.is_email_verified = 1;
+    const [byEmail] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+    user = byEmail[0];
+
+    if (!user) {
+      // Brand new user.
+      const [result] = await pool.query(
+        `INSERT INTO users (name, email, phone, provider, firebase_uid, is_email_verified)
+         VALUES (?, ?, ?, ?, ?, 1)`,
+        [name || 'User', email, phone_number || null, provider, uid]
+      );
+      const [newRows] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
+      user = newRows[0];
+    } else {
+      // Existing row (e.g. abandoned email signup, or first-time social
+      // login on an email/password account) - link this firebase_uid to it.
+      await pool.query(
+        'UPDATE users SET firebase_uid = ?, is_email_verified = 1 WHERE id = ?',
+        [uid, user.id]
+      );
+      user.firebase_uid = uid;
+      user.is_email_verified = 1;
+    }
   }
 
   const token = jwt.sign(
@@ -344,7 +367,7 @@ module.exports = {
   verifyOtp,
   resendOtp,
   customerLogin,
-  googleLogin,
+  googleLogin: socialLogin, // route path unchanged; now handles Google + Facebook + any Firebase provider
   forgotPassword,
   resetPassword,
   getMe,
