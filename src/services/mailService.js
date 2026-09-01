@@ -115,8 +115,7 @@ async function sendOrderStatusEmail(toEmail, orderId, status, customerName) {
               </div>
               <hr style="border: 1px solid #E5E7EB; margin: 30px 0;" />
               <p style="color: #9CA3AF; font-size: 12px; text-align: center;">
-                Track your order at: <a href="https://ktex.up.railway.app/track.html?order=${orderId}" style="color: #4F46E5;">Track Order</a>
-                <br/><br/>Thanks,<br/>KTEX Team
+                    Thanks,<br/>KTEX Team
               </p>
             </div>
           </body>
