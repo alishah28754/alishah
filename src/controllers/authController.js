@@ -361,6 +361,27 @@ const updateFcmToken = asyncHandler(async (req, res) => {
   return success(res, null, 'FCM token registered.');
 });
 
+/* DELETE /api/auth/delete-account - protected. Customer deletes their own
+ * account. Deletes the Firebase user first so that a re-login with the same
+ * Gmail/Facebook does not match the old firebase_uid or email row and is
+ * forced through signup again as a brand-new account. */
+const deleteMyAccount = asyncHandler(async (req, res) => {
+  const [rows] = await pool.query('SELECT firebase_uid, is_admin FROM users WHERE id = ?', [req.user.id]);
+  if (rows.length === 0) return error(res, 'User not found.', 404);
+  if (rows[0].is_admin) return error(res, 'Admin accounts cannot be self-deleted.', 400);
+
+  if (rows[0].firebase_uid) {
+    try {
+      await admin.auth().deleteUser(rows[0].firebase_uid);
+    } catch (err) {
+      console.error('⚠️ Firebase user deletion failed (continuing with DB delete):', err.message);
+    }
+  }
+
+  await pool.query('DELETE FROM users WHERE id = ?', [req.user.id]);
+  return success(res, null, 'Account deleted.');
+});
+
 module.exports = {
   adminLogin,
   signup,
@@ -373,4 +394,5 @@ module.exports = {
   getMe,
   updateProfile,
   updateFcmToken,
+  deleteMyAccount,
 };
